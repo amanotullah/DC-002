@@ -1,4 +1,6 @@
-/*  HPDL-1414 test
+#include <Wire.h>
+
+/*  HPDL-1414 DS1302 KY-040 Clock for Scott and Mara
 
 pin 0-6   data
 Pin 18    Write Module 1
@@ -8,6 +10,9 @@ pin 21    A1
 // 62.5 ns per cycle at 16MHz
 */
 
+#include <TimeLib.h>
+#include <Wire.h>
+#include <DS1307RTC.h>  // a basic DS1307 library that returns time as a time_t
 #include <TimerOne.h>
 #include <EEPROM.h>
 
@@ -28,12 +33,26 @@ pin 21    A1
 #define DataPin5 14
 #define DataPin6 15
 
+// RTC stuff
+#define RTCSCL 5
+#define RTCSDA 6
+
+// Rotary Encoder Stuff
+const int PinCLK   = 7;     // Used for generating interrupts using CLK signal
+const int PinDT    = 8;     // Used for reading DT signal
+const int PinSW    = 11;     // Used for the push button switch
+
+// Rotary Encoder stuff
+volatile int virtualPosition = 0;
+volatile unsigned long lastInterruptTime = 0;
+int lastCount = 128;
+const int brightnessSteps = 40;
+
 //maybe these three should be volatile.
 static char displaybuf[520];
 static int displaybuflen = 0;
 static int scrolloffset = 0;
 static bool scrolling = 0;
-
 
 void setup() {
     Serial.begin(57600); // USB is always 12 Mbit/sec
@@ -51,10 +70,20 @@ void setup() {
     pinMode(DataPin4, OUTPUT);
     pinMode(DataPin5, OUTPUT);
     pinMode(DataPin6, OUTPUT);
+    
+    // Rotary Encoder stuff
+    pinMode(PinCLK, INPUT); 
+    pinMode(PinDT, INPUT);
+    pinMode(PinSW, INPUT_PULLUP);  
+    attachInterrupt(PinCLK, isr, FALLING);
 
     digitalWrite(WritePin1, HIGH);
     digitalWrite(WritePin2, HIGH);
+    
+    // RTC Stuff
+    setSyncProvider(RTC.get);   // the function to get the time from the RTC
 
+    
     char *savedString = readStringFromEEProm();
     writeNewString(savedString, strlen(savedString));
 
@@ -101,14 +130,14 @@ void scrollIfNecessary(void) {
     }
 }
 
-static void inline ensureNotScrolling(void) {
+void inline ensureNotScrolling(void) {
     if (scrolling) {
         Timer1.detachInterrupt();
         scrolling = 0;
     }
 }
 
-static void inline ensureScrolling(void) {
+void inline ensureScrolling(void) {
     if (!scrolling) {
         Timer1.attachInterrupt(scrollIfNecessary);
         scrolling = 1;
@@ -159,7 +188,15 @@ char *readStringFromEEProm(void) {
 void loop() {
     static char inputbuf[512];
     static int inputbuflen = 0;
+    char timeFormat[12]; // sprintf buffer
 
+      if (!(digitalRead(PinSW))) {        // check if pushbutton is pressed
+          virtualPosition = 0;            // if YES, then reset counter to ZERO
+          while (!digitalRead(PinSW)) {}  // wait til switch is released
+          delay(10);                      // debounce
+          Serial.println("Reset");        // Using the word RESET instead of COUNT here to find out a buggy encoder
+      }
+/*
     if (Serial.available()) {
         char newchar = Serial.read();
         inputbuf[inputbuflen] = newchar;
@@ -171,4 +208,34 @@ void loop() {
             inputbuflen = 0;
         }
     }
+*/
+    if (timeStatus() == timeSet) {
+        //NEED TO REPLACE THIS WITH TIMER BASED SOLUTION
+        sprintf(timeFormat, "%2d:%02d:%02d\0", hour(),minute(),second());
+        writeNewString(timeFormat, strlen(timeFormat));
+  
+        delay(1000);
+    }
+
+    if (virtualPosition != lastCount) {
+        lastCount = virtualPosition;
+        Serial.print("Count:");
+        Serial.println(virtualPosition);
+    }
+}
+
+
+void isr ()  {
+    unsigned long interruptTime = millis();
+    // If interrupts come faster than 5ms, assume it's a bounce and ignore
+    if (interruptTime - lastInterruptTime > 5) {
+        int newValue = virtualPosition;
+        if (!digitalRead(PinDT)) {
+            newValue = (virtualPosition + 1);
+        } else {
+            newValue = virtualPosition - 1;
+        }
+        virtualPosition = constrain(newValue, 0, brightnessSteps);
+    }
+    lastInterruptTime = interruptTime;
 }
