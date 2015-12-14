@@ -1,6 +1,6 @@
 #include <Wire.h>
 
-/*  HPDL-1414 DS1302 KY-040 Clock for Scott and Mara
+/*  HPDL-1414 Chronodot KY-040 Clock for Scott and Mara
 
 pin 0-6   data
 Pin 18    Write Module 1
@@ -17,7 +17,6 @@ pin 21    A1
 #include <EEPROM.h>
 
 #define LEDPin 11
-
 #define numberOfModules 2
 
 #define WritePin1 18
@@ -46,13 +45,51 @@ const int PinSW    = 11;     // Used for the push button switch
 volatile int virtualPosition = 0;
 volatile unsigned long lastInterruptTime = 0;
 int lastCount = 128;
-const int brightnessSteps = 40;
+const int rotaryEncoderConstrain = 256;
 
 //maybe these three should be volatile.
 static char displaybuf[520];
 static int displaybuflen = 0;
 static int scrolloffset = 0;
 static bool scrolling = 0;
+
+// EEPROM LAYOUT
+// All data is read from lowest bit of relevant byte.
+// Byte 0 : Don't Auto Set DST
+// Byte 1 : 24 H Time mode
+// Byte 2 : Show Seconds
+
+// Preferences
+static int _autoSetDST = 0;
+static int _use24HTime = 0;
+static int _showSeconds = 0;
+
+int autoSetDST() {
+    return _autoSetDST;
+}
+
+void setAutoSetDST(int autoSetDST) {
+    EEPROM.update(0, autoSetDST);
+    _autoSetDST = autoSetDST;
+}
+
+int use24HTime() {
+    return _use24HTime;
+}
+
+void setUse24HTime(int use24HTime) {
+    EEPROM.update(1, use24HTime);
+    _use24HTime = use24HTime;
+}
+
+int showSeconds() {
+    return _showSeconds;
+}
+
+void setShowSeconds(int showSeconds) {
+    EEPROM.update(2, showSeconds);
+    _showSeconds = showSeconds;
+}
 
 void setup() {
     Serial.begin(57600); // USB is always 12 Mbit/sec
@@ -83,9 +120,10 @@ void setup() {
     // RTC Stuff
     setSyncProvider(RTC.get);   // the function to get the time from the RTC
 
-    
-    char *savedString = readStringFromEEProm();
-    writeNewString(savedString, strlen(savedString));
+    // init Preferences
+    _autoSetDST = EEPROM.read(0);
+    _use24HTime = EEPROM.read(1);
+    _showSeconds = EEPROM.read(2);
 
     Timer1.initialize(180000);
 }
@@ -166,37 +204,11 @@ void writeNewString(char *inputBuf, int length) {
     interrupts();
 }
 
-void saveStringToEEProm(char *buffer, int length) {
-    byte len = (byte) strlen(buffer);
-    EEPROM.write(0, len);
-    for (int i = 0; i < len; i++) {
-        EEPROM.write(1 + i, buffer[i]);
-    }
-}
-
-// Returns null terminated string;
-char *readStringFromEEProm(void) {
-    byte length = EEPROM.read(0);
-    static char outputBuf[512];
-    for (int i = 0; i < length; i ++) {
-        outputBuf[i] = EEPROM.read(i + 1);
-    }
-    outputBuf[length] = '\0';
-    return outputBuf;
-}
-
-void loop() {
+void inline setTimeViaSerialIfAvailable() {
+/*
     static char inputbuf[512];
     static int inputbuflen = 0;
-    char timeFormat[12]; // sprintf buffer
 
-      if (!(digitalRead(PinSW))) {        // check if pushbutton is pressed
-          virtualPosition = 0;            // if YES, then reset counter to ZERO
-          while (!digitalRead(PinSW)) {}  // wait til switch is released
-          delay(10);                      // debounce
-          Serial.println("Reset");        // Using the word RESET instead of COUNT here to find out a buggy encoder
-      }
-/*
     if (Serial.available()) {
         char newchar = Serial.read();
         inputbuf[inputbuflen] = newchar;
@@ -209,19 +221,69 @@ void loop() {
         }
     }
 */
-    if (timeStatus() == timeSet) {
-        //NEED TO REPLACE THIS WITH TIMER BASED SOLUTION
-        sprintf(timeFormat, "%2d:%02d:%02d\0", hour(),minute(),second());
-        writeNewString(timeFormat, strlen(timeFormat));
-  
-        delay(1000);
-    }
+}
 
+static int showingMenu = 0;
+static int menuLevel = 0;
+static int menuPosition = 0;
+
+void inline writeCurrentTime() {
+    char timeFormat[12]; // sprintf buffer
+    static int lastWrittenH = -1;
+    static int lastWrittenM = -1;
+    static int lastWrittenS = -1;
+    
+    if (!showingMenu && timeStatus() == timeSet) {
+        int hr = use24HTime() ? hour() : hourFormat12();
+        int min = minute();
+        int sec = second();
+        if (lastWrittenH != hr || lastWrittenM != min || (lastWrittenS != sec && showSeconds())) {
+            if (showSeconds()) {
+                sprintf(timeFormat, "%2d:%02d:%02d", hr, min, sec);
+            } else {
+                if (isAM()) {
+                    sprintf(timeFormat, "%2d:%02d AM", hr, min);
+                } else {
+                    sprintf(timeFormat, "%2d:%02d PM", hr, min);
+                }
+            }
+            writeNewString(timeFormat, strlen(timeFormat));
+            lastWrittenH = hr;
+            lastWrittenM = min;
+            lastWrittenS = sec;
+        }
+    }
+}
+
+void inline writeMenu() {
+    if (showingMenu) {
+        char menuString[12]; // sprintf buffer
+        sprintf(menuString, "%d  ", virtualPosition);
+        writeNewString(menuString, strlen(menuString));
+    }
+}
+
+void inline processButtonPush () {
+
+    showingMenu = !showingMenu;
+}
+
+void loop() {
+    // Handle Input
+    if (!(digitalRead(PinSW))) {        // check if pushbutton is pressed
+        //virtualPosition = 0;            // if YES, then reset counter to ZERO
+        while (!digitalRead(PinSW)) {}  // wait til switch is released
+        delay(10);                      // debounce
+        processButtonPush();
+    }
+    
     if (virtualPosition != lastCount) {
         lastCount = virtualPosition;
-        Serial.print("Count:");
-        Serial.println(virtualPosition);
     }
+    
+    setTimeViaSerialIfAvailable();
+    writeCurrentTime();
+    writeMenu();
 }
 
 
@@ -235,7 +297,7 @@ void isr ()  {
         } else {
             newValue = virtualPosition - 1;
         }
-        virtualPosition = constrain(newValue, 0, brightnessSteps);
+        virtualPosition = constrain(newValue, -rotaryEncoderConstrain, rotaryEncoderConstrain);
     }
     lastInterruptTime = interruptTime;
 }
