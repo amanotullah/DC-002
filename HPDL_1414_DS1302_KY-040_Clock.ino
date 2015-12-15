@@ -10,6 +10,14 @@ pin 21    A1
 // 62.5 ns per cycle at 16MHz
 */
 
+/// TODO:
+/// Select menu options based on current prefs
+/// UI for setting time
+/// USB/Serial protocol for setting time
+/// DST correction
+/// Temperature/Date Display
+/// Auto-exit menu after timeout
+
 #include <TimeLib.h>
 #include <Wire.h>
 #include <DS1307RTC.h>  // a basic DS1307 library that returns time as a time_t
