@@ -15,6 +15,7 @@ pin 21    A1
 #include <DS1307RTC.h>  // a basic DS1307 library that returns time as a time_t
 #include <TimerOne.h>
 #include <EEPROM.h>
+#include "MenuSystem.h"
 
 #define LEDPin 11
 #define numberOfModules 2
@@ -60,36 +61,53 @@ static bool scrolling = 0;
 // Byte 2 : Show Seconds
 
 // Preferences
-static int _autoSetDST = 0;
-static int _use24HTime = 0;
-static int _showSeconds = 0;
+static char _autoSetDST = 0;
+static char _use24HTime = 0;
+static char _showSeconds = 0;
 
-int autoSetDST() {
+char autoSetDST() {
     return _autoSetDST;
 }
 
-void setAutoSetDST(int autoSetDST) {
+void setAutoSetDST(char autoSetDST) {
     EEPROM.update(0, autoSetDST);
     _autoSetDST = autoSetDST;
 }
 
-int use24HTime() {
+char use24HTime() {
     return _use24HTime;
 }
 
-void setUse24HTime(int use24HTime) {
+void setUse24HTime(char use24HTime) {
     EEPROM.update(1, use24HTime);
     _use24HTime = use24HTime;
 }
 
-int showSeconds() {
+char showSeconds() {
     return _showSeconds;
 }
 
-void setShowSeconds(int showSeconds) {
+void setShowSeconds(char showSeconds) {
     EEPROM.update(2, showSeconds);
     _showSeconds = showSeconds;
 }
+
+// Menu
+
+MenuSystem ms;  
+Menu mm("");  
+MenuItem mi_set("Set Time");
+Menu mu_auto_dst("Auto DST");
+MenuItem mi_auto_dst("Auto DST");
+MenuItem mi_no_dst("No DST");
+Menu mu_use_24h_time("12/24 Hr");  
+MenuItem mi_12h_time("12 Hr");  
+MenuItem mi_24h_time("24 Hr");
+Menu mu_show_seconds("Show Sec");  
+MenuItem mi_show_seconds("Seconds");  
+MenuItem mi_hide_seconds("AM/PM");
+MenuItem mi_exit("Exit");  
+
 
 void setup() {
     Serial.begin(57600); // USB is always 12 Mbit/sec
@@ -125,6 +143,8 @@ void setup() {
     _use24HTime = EEPROM.read(1);
     _showSeconds = EEPROM.read(2);
 
+    initMenu();
+    
     Timer1.initialize(180000);
 }
 
@@ -224,9 +244,55 @@ void inline setTimeViaSerialIfAvailable() {
 }
 
 static int showingMenu = 0;
-static int menuLevel = 0;
-static int menuPosition = 0;
 
+void on_menu_set_time(MenuItem* selectedItem) {
+showingMenu = 0;
+}
+void on_menu_auto_dst(MenuItem* selectedItem) {
+setAutoSetDST(1);
+showingMenu = 0;
+}
+void on_menu_no_dst(MenuItem* selectedItem) {
+setAutoSetDST(0);
+showingMenu = 0;
+}
+void on_menu_12h_time(MenuItem* selectedItem) {
+setUse24HTime(0);
+showingMenu = 0;
+}
+void on_menu_24h_time(MenuItem* selectedItem) {
+setUse24HTime(1);
+showingMenu = 0;
+}
+void on_menu_show_seconds(MenuItem* selectedItem) {
+setShowSeconds(1);
+showingMenu = 0;
+}
+void on_menu_hide_seconds(MenuItem* selectedItem) {
+setShowSeconds(0);
+showingMenu = 0;
+}
+void on_menu_exit(MenuItem* selectedItem) {
+showingMenu = 0;
+}
+
+void initMenu() {
+    // Menus
+    mm.add_item(&mi_set, &on_menu_set_time);
+    mm.add_menu(&mu_auto_dst);
+    mu_auto_dst.add_item(&mi_auto_dst, &on_menu_auto_dst);
+    mu_auto_dst.add_item(&mi_no_dst, &on_menu_no_dst);
+    mm.add_menu(&mu_use_24h_time);
+    mu_use_24h_time.add_item(&mi_12h_time, &on_menu_12h_time);
+    mu_use_24h_time.add_item(&mi_24h_time, &on_menu_24h_time);
+    mm.add_menu(&mu_show_seconds);
+    mu_show_seconds.add_item(&mi_show_seconds, &on_menu_show_seconds);
+    mu_show_seconds.add_item(&mi_hide_seconds, &on_menu_hide_seconds);
+    mm.add_item(&mi_exit, &on_menu_exit);
+    ms.set_root_menu(&mm);
+}
+
+static int lastWroteMenu = 1;
 void inline writeCurrentTime() {
     char timeFormat[12]; // sprintf buffer
     static int lastWrittenH = -1;
@@ -237,7 +303,7 @@ void inline writeCurrentTime() {
         int hr = use24HTime() ? hour() : hourFormat12();
         int min = minute();
         int sec = second();
-        if (lastWrittenH != hr || lastWrittenM != min || (lastWrittenS != sec && showSeconds())) {
+        if (lastWroteMenu || lastWrittenH != hr || lastWrittenM != min || (lastWrittenS != sec && showSeconds())) {
             if (showSeconds()) {
                 sprintf(timeFormat, "%2d:%02d:%02d", hr, min, sec);
             } else {
@@ -248,6 +314,7 @@ void inline writeCurrentTime() {
                 }
             }
             writeNewString(timeFormat, strlen(timeFormat));
+            lastWroteMenu = 0;
             lastWrittenH = hr;
             lastWrittenM = min;
             lastWrittenS = sec;
@@ -257,15 +324,20 @@ void inline writeCurrentTime() {
 
 void inline writeMenu() {
     if (showingMenu) {
-        char menuString[12]; // sprintf buffer
-        sprintf(menuString, "%d  ", virtualPosition);
-        writeNewString(menuString, strlen(menuString));
+        //char menuString[12]; // sprintf buffer
+        //sprintf(menuString, "%d  ", virtualPosition);
+        Menu const* cp_menu = ms.get_current_menu();
+        writeNewString(cp_menu->get_selected()->get_name(), strlen(cp_menu->get_selected()->get_name()));
+        lastWroteMenu = 1;
     }
 }
 
 void inline processButtonPush () {
-
-    showingMenu = !showingMenu;
+    if (showingMenu) {
+        ms.select();
+    } else {
+        showingMenu = !showingMenu;
+    } 
 }
 
 void loop() {
@@ -291,13 +363,19 @@ void isr ()  {
     unsigned long interruptTime = millis();
     // If interrupts come faster than 5ms, assume it's a bounce and ignore
     if (interruptTime - lastInterruptTime > 5) {
-        int newValue = virtualPosition;
+        //int newValue = virtualPosition;
         if (!digitalRead(PinDT)) {
-            newValue = (virtualPosition + 1);
+            if (showingMenu) {
+                ms.next();
+            }
+            //newValue = (virtualPosition + 1);
         } else {
-            newValue = virtualPosition - 1;
+            if (showingMenu) {
+                ms.prev();
+            }
+            //newValue = virtualPosition - 1;
         }
-        virtualPosition = constrain(newValue, -rotaryEncoderConstrain, rotaryEncoderConstrain);
+        //virtualPosition = constrain(newValue, -rotaryEncoderConstrain, rotaryEncoderConstrain);
     }
     lastInterruptTime = interruptTime;
 }
