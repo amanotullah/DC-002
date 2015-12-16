@@ -45,18 +45,16 @@ pin 21    A1
 #define RTCSDA 6
 
 // Rotary Encoder Stuff
-const int PinCLK   = 7;     // Used for generating interrupts using CLK signal
-const int PinDT    = 8;     // Used for reading DT signal
-const int PinSW    = 11;     // Used for the push button switch
+#define PinCLK 7     // Used for generating interrupts using CLK signal
+#define PinDT 8     // Used for reading DT signal
+#define PinSW 11     // Used for the push button switch
 
 // Rotary Encoder stuff
-volatile int virtualPosition = 0;
 volatile unsigned long lastInterruptTime = 0;
-int lastCount = 128;
-const int rotaryEncoderConstrain = 256;
 
 //maybe these three should be volatile.
-static char displaybuf[520];
+#define display_buf_max_len 128
+static char displaybuf[display_buf_max_len];
 static int displaybuflen = 0;
 static int scrolloffset = 0;
 static bool scrolling = 0;
@@ -119,7 +117,6 @@ MenuItem mi_exit("Exit");
 void setup() {
     Serial.begin(57600); // USB is always 12 Mbit/sec
     Serial.setTimeout(0);
-    pinMode(LEDPin, OUTPUT);
     pinMode(WritePin1, OUTPUT);
     pinMode(WritePin2, OUTPUT);
     pinMode(Address0, OUTPUT);
@@ -210,25 +207,28 @@ void inline ensureScrolling(void) {
 }
 
 void writeNewString(char *inputBuf, int length) {
-    noInterrupts();
-    ensureNotScrolling();
-    memcpy(displaybuf, inputBuf, length);
-    scrolloffset = 0;
-    if (length <= (numberOfModules * 4)) {
-        while (length < (numberOfModules * 4)) {
-            displaybuf[length] = ' ';
-            length++;
+    if (strncmp(inputBuf, displaybuf, length)) {
+        noInterrupts();
+        ensureNotScrolling();
+        memset(displaybuf, 0, display_buf_max_len);
+        memcpy(displaybuf, inputBuf, length);
+        scrolloffset = 0;
+        if (length <= (numberOfModules * 4)) {
+            while (length < (numberOfModules * 4)) {
+                displaybuf[length] = ' ';
+                length++;
+            }
         }
+        displaybuflen = length;
+        if (length > (numberOfModules * 4)) {
+            displaybuf[length] = ' ';
+            memcpy(displaybuf + length + 1, inputBuf, ((numberOfModules * 4) - 1));
+            ensureScrolling();
+        } else {
+            writeString(displaybuf, (numberOfModules * 4));
+        }
+        interrupts();
     }
-    displaybuflen = length;
-    if (length > (numberOfModules * 4)) {
-        displaybuf[length] = ' ';
-        memcpy(displaybuf + length + 1, inputBuf, ((numberOfModules * 4) - 1));
-        ensureScrolling();
-    } else {
-        writeString(displaybuf, (numberOfModules * 4));
-    }
-    interrupts();
 }
 
 #define TIME_HEADER  "T"   // Header tag for serial time sync message
@@ -257,39 +257,39 @@ void inline setTimeViaSerialIfAvailable() {
 static int showingMenu = 0;
 
 void on_menu_set_time(MenuItem* selectedItem) {
-hide_menu();
+    hide_menu();
 }
 void on_menu_auto_dst(MenuItem* selectedItem) {
-setAutoSetDST(1);
-hide_menu();
+    setAutoSetDST(1);
+    hide_menu();
 }
 void on_menu_no_dst(MenuItem* selectedItem) {
-setAutoSetDST(0);
-hide_menu();
+    setAutoSetDST(0);
+    hide_menu();
 }
 void on_menu_12h_time(MenuItem* selectedItem) {
-setUse24HTime(0);
-hide_menu();
+    setUse24HTime(0);
+    hide_menu();
 }
 void on_menu_24h_time(MenuItem* selectedItem) {
-setUse24HTime(1);
-hide_menu();
+    setUse24HTime(1);
+    hide_menu();
 }
 void on_menu_show_seconds(MenuItem* selectedItem) {
-setShowSeconds(1);
-hide_menu();
+    setShowSeconds(1);
+    hide_menu();
 }
 void on_menu_hide_seconds(MenuItem* selectedItem) {
-setShowSeconds(0);
-hide_menu();
+    setShowSeconds(0);
+    hide_menu();
 }
 void on_menu_exit(MenuItem* selectedItem) {
-hide_menu();
+    hide_menu();
 }
 
 void inline hide_menu() {
-showingMenu = 0;
-mm.move_to_index(0);
+    showingMenu = 0;
+    mm.move_to_index(0);
 }
 
 void initMenu() {
@@ -311,47 +311,34 @@ void initMenu() {
     ms.set_root_menu(&mm);
 }
 
-static int lastWroteMenu = 1;
 void inline writeCurrentTime() {
     char timeFormat[12]; // sprintf buffer
-    static int lastWrittenH = -1;
-    static int lastWrittenM = -1;
-    static int lastWrittenS = -1;
-    
+
     if (!showingMenu && timeStatus() == timeSet) {
         int hr = use24HTime() ? hour() : hourFormat12();
         int min = minute();
         int sec = second();
-        if (lastWroteMenu || lastWrittenH != hr || lastWrittenM != min || (lastWrittenS != sec && showSeconds())) {
-            if (showSeconds()) {
-                sprintf(timeFormat, "%2d:%02d:%02d", hr, min, sec);
+        if (showSeconds()) {
+            sprintf(timeFormat, "%2d:%02d:%02d", hr, min, sec);
+        } else {
+            if (use24HTime()) {
+                sprintf(timeFormat, " %2d:%02d", hr, min);
             } else {
-                if (use24HTime()) {
-                    sprintf(timeFormat, " %2d:%02d", hr, min);
+                if (isAM()) {
+                    sprintf(timeFormat, "%2d:%02d AM", hr, min);
                 } else {
-                    if (isAM()) {
-                        sprintf(timeFormat, "%2d:%02d AM", hr, min);
-                    } else {
-                        sprintf(timeFormat, "%2d:%02d PM", hr, min);
-                    }
+                    sprintf(timeFormat, "%2d:%02d PM", hr, min);
                 }
             }
-            writeNewString(timeFormat, strlen(timeFormat));
-            lastWroteMenu = 0;
-            lastWrittenH = hr;
-            lastWrittenM = min;
-            lastWrittenS = sec;
         }
+        writeNewString(timeFormat, strlen(timeFormat));
     }
 }
 
 void inline writeMenu() {
     if (showingMenu) {
-        //char menuString[12]; // sprintf buffer
-        //sprintf(menuString, "%d  ", virtualPosition);
         Menu const* cp_menu = ms.get_current_menu();
         writeNewString(cp_menu->get_selected()->get_name(), strlen(cp_menu->get_selected()->get_name()));
-        lastWroteMenu = 1;
     }
 }
 
@@ -366,14 +353,9 @@ void inline processButtonPush () {
 void loop() {
     // Handle Input
     if (!(digitalRead(PinSW))) {        // check if pushbutton is pressed
-        //virtualPosition = 0;            // if YES, then reset counter to ZERO
         while (!digitalRead(PinSW)) {}  // wait til switch is released
         delay(10);                      // debounce
         processButtonPush();
-    }
-    
-    if (virtualPosition != lastCount) {
-        lastCount = virtualPosition;
     }
     
     setTimeViaSerialIfAvailable();
@@ -386,19 +368,15 @@ void isr ()  {
     unsigned long interruptTime = millis();
     // If interrupts come faster than 5ms, assume it's a bounce and ignore
     if (interruptTime - lastInterruptTime > 5) {
-        //int newValue = virtualPosition;
         if (!digitalRead(PinDT)) {
             if (showingMenu) {
                 ms.next();
             }
-            //newValue = (virtualPosition + 1);
         } else {
             if (showingMenu) {
                 ms.prev();
             }
-            //newValue = virtualPosition - 1;
         }
-        //virtualPosition = constrain(newValue, -rotaryEncoderConstrain, rotaryEncoderConstrain);
     }
     lastInterruptTime = interruptTime;
 }
