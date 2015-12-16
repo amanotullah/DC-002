@@ -64,11 +64,13 @@ static bool scrolling = 0;
 // Byte 0 : Don't Auto Set DST
 // Byte 1 : 24 H Time mode
 // Byte 2 : Show Seconds
+// Byte 3 : Use Celsius
 
 // Preferences
 static char _autoSetDST = 0;
 static char _use24HTime = 0;
 static char _showSeconds = 0;
+static char _useCelsius = 0;
 
 char autoSetDST() {
     return _autoSetDST;
@@ -97,6 +99,15 @@ void setShowSeconds(char showSeconds) {
     _showSeconds = showSeconds;
 }
 
+char useCelsius() {
+    return _useCelsius;
+}
+
+void setUseCelsius(char useCelsius) {
+    EEPROM.update(3, useCelsius);
+    _useCelsius = useCelsius;
+}
+
 // Menu
 
 MenuSystem ms;  
@@ -111,6 +122,9 @@ MenuItem mi_24h_time("24 Hr");
 Menu mu_show_seconds("Show Sec");  
 MenuItem mi_show_seconds("Seconds");  
 MenuItem mi_hide_seconds("AM/PM");
+Menu mu_use_celsius("Temp F/C");  
+MenuItem mi_use_fahrenheit("Deg F");
+MenuItem mi_use_celsius("Deg C");  
 MenuItem mi_exit("Exit");  
 
 
@@ -146,7 +160,7 @@ void setup() {
     _autoSetDST = EEPROM.read(0);
     _use24HTime = EEPROM.read(1);
     _showSeconds = EEPROM.read(2);
-
+    _useCelsius =  EEPROM.read(3);
     initMenu();
     
     Timer1.initialize(180000);
@@ -255,6 +269,8 @@ void inline setTimeViaSerialIfAvailable() {
 }
 
 static int showingMenu = 0;
+static int displaySelection = 0;
+#define displaySelectionCount 3
 
 void on_menu_set_time(MenuItem* selectedItem) {
     hide_menu();
@@ -283,6 +299,14 @@ void on_menu_hide_seconds(MenuItem* selectedItem) {
     setShowSeconds(0);
     hide_menu();
 }
+void on_menu_use_celsius(MenuItem* selectedItem) {
+    setUseCelsius(1);
+    hide_menu();
+}
+void on_menu_use_fahrenheit(MenuItem* selectedItem) {
+    setUseCelsius(0);
+    hide_menu();
+}
 void on_menu_exit(MenuItem* selectedItem) {
     hide_menu();
 }
@@ -307,13 +331,16 @@ void initMenu() {
     mu_show_seconds.add_item(&mi_show_seconds, &on_menu_show_seconds);
     mu_show_seconds.add_item(&mi_hide_seconds, &on_menu_hide_seconds);
     mu_show_seconds.move_to_index(showSeconds() ? 0 : 1);
+    mm.add_menu(&mu_use_celsius);
+    mu_use_celsius.add_item(&mi_use_fahrenheit, &on_menu_use_fahrenheit);
+    mu_use_celsius.add_item(&mi_use_celsius, &on_menu_use_celsius);
+    mu_use_celsius.move_to_index(useCelsius() ? 1 : 0);
     mm.add_item(&mi_exit, &on_menu_exit);
     ms.set_root_menu(&mm);
 }
 
 void inline writeCurrentTime() {
     char timeFormat[12]; // sprintf buffer
-
     if (!showingMenu && timeStatus() == timeSet) {
         int hr = use24HTime() ? hour() : hourFormat12();
         int min = minute();
@@ -333,6 +360,25 @@ void inline writeCurrentTime() {
         }
         writeNewString(timeFormat, strlen(timeFormat));
     }
+}
+
+void inline writeCurrentDate() {
+    char dateFormat[12]; // sprintf buffer
+    if (!showingMenu && timeStatus() == timeSet) {
+        sprintf(dateFormat, "%2d/%02d/%02d", month(), day(), year() - 2000);
+        writeNewString(dateFormat, strlen(dateFormat));
+    }
+}
+
+void inline writeCurrentTemperature() {
+    char tempFormat[12]; // sprintf buffer
+    int temp = 0;
+    if (useCelsius()) {
+        sprintf(tempFormat, "  %2d C", temp);
+    } else {
+        sprintf(tempFormat, "  %2d F", temp);
+    }
+    writeNewString(tempFormat, strlen(tempFormat));
 }
 
 void inline writeMenu() {
@@ -359,8 +405,17 @@ void loop() {
     }
     
     setTimeViaSerialIfAvailable();
-    writeCurrentTime();
-    writeMenu();
+    if (showingMenu) {
+        writeMenu();
+    } else {
+        if (displaySelection == 0) {
+            writeCurrentTime();
+        } else if (displaySelection == 1) {
+            writeCurrentDate();
+        } else {
+            writeCurrentTemperature();
+        }
+    }
 }
 
 
@@ -371,10 +426,14 @@ void isr ()  {
         if (!digitalRead(PinDT)) {
             if (showingMenu) {
                 ms.next();
+            } else {
+                displaySelection = (displaySelection + 1) % 3;
             }
         } else {
             if (showingMenu) {
                 ms.prev();
+            } else {
+                displaySelection = (displaySelection - 1) % 3;
             }
         }
     }
