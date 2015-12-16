@@ -12,10 +12,10 @@ pin 21    A1
 
 /// TODO:
 /// UI for setting time
-/// USB/Serial protocol for setting time
 /// DST correction
 /// Temperature/Date Display
 /// Auto-exit menu after timeout
+/// User guide documentation
 
 #include <TimeLib.h>
 #include <Wire.h>
@@ -231,23 +231,27 @@ void writeNewString(char *inputBuf, int length) {
     interrupts();
 }
 
-void inline setTimeViaSerialIfAvailable() {
-/*
-    static char inputbuf[512];
-    static int inputbuflen = 0;
-
-    if (Serial.available()) {
-        char newchar = Serial.read();
-        inputbuf[inputbuflen] = newchar;
-        inputbuflen = (inputbuflen + 1);
-        if (newchar == '\n') {
-            inputbuflen = inputbuflen - 1; //exclude newline
-            writeNewString(inputbuf, inputbuflen);
-            saveStringToEEProm(inputbuf, inputbuflen);
-            inputbuflen = 0;
+#define TIME_HEADER  "T"   // Header tag for serial time sync message
+unsigned long processSyncMessage() {
+    unsigned long pctime = 0L;
+    const unsigned long DEFAULT_TIME = 1420070400; // Jan 1 2015 
+    if(Serial.find(TIME_HEADER)) {
+        pctime = Serial.parseInt();
+        if ( pctime < DEFAULT_TIME) { // check the value is a valid time (greater than Jan 1 2015)
+            pctime = 0L; // return 0 to indicate that the time is not valid
         }
     }
-*/
+    return pctime;
+}
+
+void inline setTimeViaSerialIfAvailable() {
+    if (Serial.available()) {
+        time_t t = processSyncMessage();
+        if (t != 0) {
+            RTC.set(t);   // set the RTC and the system time to the received value
+            setTime(t);          
+        }
+    }
 }
 
 static int showingMenu = 0;
