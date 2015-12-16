@@ -48,6 +48,8 @@ public:
 
     boolean next(boolean loop=false);
     boolean prev(boolean loop=false);
+    boolean move_to_index(byte idx=0);
+
     MenuComponent* activate();
     virtual MenuComponent* select();
 

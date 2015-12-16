@@ -11,7 +11,6 @@ pin 21    A1
 */
 
 /// TODO:
-/// Select menu options based on current prefs
 /// UI for setting time
 /// USB/Serial protocol for setting time
 /// DST correction
@@ -254,34 +253,39 @@ void inline setTimeViaSerialIfAvailable() {
 static int showingMenu = 0;
 
 void on_menu_set_time(MenuItem* selectedItem) {
-showingMenu = 0;
+hide_menu();
 }
 void on_menu_auto_dst(MenuItem* selectedItem) {
 setAutoSetDST(1);
-showingMenu = 0;
+hide_menu();
 }
 void on_menu_no_dst(MenuItem* selectedItem) {
 setAutoSetDST(0);
-showingMenu = 0;
+hide_menu();
 }
 void on_menu_12h_time(MenuItem* selectedItem) {
 setUse24HTime(0);
-showingMenu = 0;
+hide_menu();
 }
 void on_menu_24h_time(MenuItem* selectedItem) {
 setUse24HTime(1);
-showingMenu = 0;
+hide_menu();
 }
 void on_menu_show_seconds(MenuItem* selectedItem) {
 setShowSeconds(1);
-showingMenu = 0;
+hide_menu();
 }
 void on_menu_hide_seconds(MenuItem* selectedItem) {
 setShowSeconds(0);
-showingMenu = 0;
+hide_menu();
 }
 void on_menu_exit(MenuItem* selectedItem) {
+hide_menu();
+}
+
+void inline hide_menu() {
 showingMenu = 0;
+mm.move_to_index(0);
 }
 
 void initMenu() {
@@ -290,12 +294,15 @@ void initMenu() {
     mm.add_menu(&mu_auto_dst);
     mu_auto_dst.add_item(&mi_auto_dst, &on_menu_auto_dst);
     mu_auto_dst.add_item(&mi_no_dst, &on_menu_no_dst);
+    mu_auto_dst.move_to_index(autoSetDST() ? 0 : 1);
     mm.add_menu(&mu_use_24h_time);
     mu_use_24h_time.add_item(&mi_12h_time, &on_menu_12h_time);
     mu_use_24h_time.add_item(&mi_24h_time, &on_menu_24h_time);
+    mu_use_24h_time.move_to_index(use24HTime() ? 1 : 0);
     mm.add_menu(&mu_show_seconds);
     mu_show_seconds.add_item(&mi_show_seconds, &on_menu_show_seconds);
     mu_show_seconds.add_item(&mi_hide_seconds, &on_menu_hide_seconds);
+    mu_show_seconds.move_to_index(showSeconds() ? 0 : 1);
     mm.add_item(&mi_exit, &on_menu_exit);
     ms.set_root_menu(&mm);
 }
@@ -315,10 +322,14 @@ void inline writeCurrentTime() {
             if (showSeconds()) {
                 sprintf(timeFormat, "%2d:%02d:%02d", hr, min, sec);
             } else {
-                if (isAM()) {
-                    sprintf(timeFormat, "%2d:%02d AM", hr, min);
+                if (use24HTime()) {
+                    sprintf(timeFormat, " %2d:%02d", hr, min);
                 } else {
-                    sprintf(timeFormat, "%2d:%02d PM", hr, min);
+                    if (isAM()) {
+                        sprintf(timeFormat, "%2d:%02d AM", hr, min);
+                    } else {
+                        sprintf(timeFormat, "%2d:%02d PM", hr, min);
+                    }
                 }
             }
             writeNewString(timeFormat, strlen(timeFormat));

@@ -77,6 +77,18 @@ boolean Menu::prev(boolean loop)
     return false;
 }
 
+boolean Menu::move_to_index(byte idx)
+{
+    if (idx < _num_menu_components)
+    {
+        _cur_menu_component_num = idx;
+        _p_sel_menu_component = _menu_components[_cur_menu_component_num];
+
+        return true;
+    }
+    return false;
+}
+
 MenuComponent* Menu::activate()
 {
     MenuComponent* pComponent = _menu_components[_cur_menu_component_num];
