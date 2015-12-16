@@ -16,10 +16,11 @@ pin 21    A1
 /// Temperature/Date Display
 /// Auto-exit menu after timeout
 /// User guide documentation
+/// Auto reset from Temp/Date displays
 
 #include <TimeLib.h>
 #include <Wire.h>
-#include <DS1307RTC.h>  // a basic DS1307 library that returns time as a time_t
+#include <DS3232RTC.h> // From https://github.com/JChristensen/DS3232RTC
 #include <TimerOne.h>
 #include <EEPROM.h>
 #include "MenuSystem.h"
@@ -370,13 +371,20 @@ void inline writeCurrentDate() {
     }
 }
 
+unsigned long lastTempReadTime = 0;
+int temp = 0;
 void inline writeCurrentTemperature() {
     char tempFormat[12]; // sprintf buffer
-    int temp = 0;
+    unsigned long requestTime = millis();
+    if (requestTime - lastTempReadTime > 500) {
+        temp = RTC.temperature() / 4;
+        lastTempReadTime = requestTime;
+    }
     if (useCelsius()) {
         sprintf(tempFormat, "  %2d C", temp);
     } else {
-        sprintf(tempFormat, "  %2d F", temp);
+        int ftemp = temp * 1.8 + 32;
+        sprintf(tempFormat, "  %2d F", ftemp);
     }
     writeNewString(tempFormat, strlen(tempFormat));
 }
