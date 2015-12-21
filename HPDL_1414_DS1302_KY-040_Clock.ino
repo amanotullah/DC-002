@@ -12,15 +12,13 @@ pin 21    A1
 
 /// TODO:
 /// UI for setting time
-/// DST correction
-/// Temperature/Date Display
 /// Auto-exit menu after timeout
 /// User guide documentation
-/// Auto reset from Temp/Date displays
 
 #include <TimeLib.h>
 #include <Wire.h>
 #include <DS3232RTC.h> // From https://github.com/JChristensen/DS3232RTC
+#include <Timezone.h> // From https://github.com/JChristensen/Timezone
 #include <TimerOne.h>
 #include <EEPROM.h>
 #include "MenuSystem.h"
@@ -66,6 +64,17 @@ static bool scrolling = 0;
 // Byte 1 : 24 H Time mode
 // Byte 2 : Show Seconds
 // Byte 3 : Use Celsius
+
+// A note about Time Zones
+// The usage of the timezone library here is a bit misleading
+// We don't ever actually figure out GMT or consider a real offset, but just keep track
+// of time in Standard time, and go +1 hour during daylight savings time.
+
+// Timekeeping
+
+TimeChangeRule usDaylight = {"DAY", Second, Sun, Mar, 2, 60};  //UTC + 1 Hour = Daylight Local Time
+TimeChangeRule usStandard = {"STD", First, Sun, Nov, 2, 0};   //UTC = Standard Local Time
+Timezone usTimezones(usDaylight, usStandard);
 
 // Preferences
 static char _autoSetDST = 0;
@@ -343,9 +352,10 @@ void initMenu() {
 void inline writeCurrentTime() {
     char timeFormat[12]; // sprintf buffer
     if (!showingMenu && timeStatus() == timeSet) {
-        int hr = use24HTime() ? hour() : hourFormat12();
-        int min = minute();
-        int sec = second();
+        time_t localtime = usTimezones.toLocal(now());
+        int hr = use24HTime() ? hour(localtime) : hourFormat12(localtime);
+        int min = minute(localtime);
+        int sec = second(localtime);
         if (showSeconds()) {
             sprintf(timeFormat, "%2d:%02d:%02d", hr, min, sec);
         } else {
@@ -366,7 +376,8 @@ void inline writeCurrentTime() {
 void inline writeCurrentDate() {
     char dateFormat[12]; // sprintf buffer
     if (!showingMenu && timeStatus() == timeSet) {
-        sprintf(dateFormat, "%2d/%02d/%02d", month(), day(), year() - 2000);
+            time_t localtime = usTimezones.toLocal(now());
+        sprintf(dateFormat, "%2d/%02d/%02d", month(localtime), day(localtime), year(localtime) - 2000);
         writeNewString(dateFormat, strlen(dateFormat));
     }
 }
