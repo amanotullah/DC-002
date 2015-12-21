@@ -1,5 +1,3 @@
-#include <Wire.h>
-
 /*  HPDL-1414 Chronodot KY-040 Clock for Scott and Mara
 
 pin 0-6   data
@@ -9,6 +7,18 @@ Pin 20    A0
 pin 21    A1
 // 62.5 ns per cycle at 16MHz
 */
+
+// EEPROM LAYOUT
+// All data is read from lowest bit of relevant byte.
+// Byte 0 : Don't Auto Set DST
+// Byte 1 : 24 H Time mode
+// Byte 2 : Show Seconds
+// Byte 3 : Use Celsius
+
+// A note about Time Zones
+// The usage of the timezone library here is a bit misleading
+// We don't ever actually figure out GMT or consider a real offset, but just keep track
+// of time in Standard time, and go +1 hour during daylight savings time.
 
 /// TODO:
 /// UI for setting time
@@ -22,6 +32,8 @@ pin 21    A1
 #include <TimerOne.h>
 #include <EEPROM.h>
 #include "MenuSystem.h"
+
+// Pin Assignments
 
 #define LEDPin 11
 #define numberOfModules 2
@@ -58,23 +70,34 @@ static int displaybuflen = 0;
 static int scrolloffset = 0;
 static bool scrolling = 0;
 
-// EEPROM LAYOUT
-// All data is read from lowest bit of relevant byte.
-// Byte 0 : Don't Auto Set DST
-// Byte 1 : 24 H Time mode
-// Byte 2 : Show Seconds
-// Byte 3 : Use Celsius
-
-// A note about Time Zones
-// The usage of the timezone library here is a bit misleading
-// We don't ever actually figure out GMT or consider a real offset, but just keep track
-// of time in Standard time, and go +1 hour during daylight savings time.
-
-// Timekeeping
+// Timezones
 
 TimeChangeRule usDaylight = {"DAY", Second, Sun, Mar, 2, 60};  //UTC + 1 Hour = Daylight Local Time
 TimeChangeRule usStandard = {"STD", First, Sun, Nov, 2, 0};   //UTC = Standard Local Time
 Timezone usTimezones(usDaylight, usStandard);
+
+// Menu
+
+MenuSystem ms;  
+Menu mm("");  
+MenuItem mi_set("Set Time");
+Menu mu_auto_dst("Auto DST");
+MenuItem mi_auto_dst("Enabled");
+MenuItem mi_no_dst("Disabled");
+Menu mu_use_24h_time("12/24 Hr");  
+MenuItem mi_12h_time("12 Hr");  
+MenuItem mi_24h_time("24 Hr");
+Menu mu_show_seconds("Show Sec");  
+MenuItem mi_show_seconds("Seconds");  
+MenuItem mi_hide_seconds("AM/PM");
+Menu mu_use_celsius("Temp F/C");  
+MenuItem mi_use_fahrenheit("Deg F");
+MenuItem mi_use_celsius("Deg C");  
+MenuItem mi_exit("Exit");  
+
+static int showingMenu = 0;
+static int displaySelection = 0;
+#define displaySelectionCount 3
 
 // Preferences
 static char _autoSetDST = 0;
@@ -117,26 +140,6 @@ void setUseCelsius(char useCelsius) {
     EEPROM.update(3, useCelsius);
     _useCelsius = useCelsius;
 }
-
-// Menu
-
-MenuSystem ms;  
-Menu mm("");  
-MenuItem mi_set("Set Time");
-Menu mu_auto_dst("Auto DST");
-MenuItem mi_auto_dst("Enabled");
-MenuItem mi_no_dst("Disabled");
-Menu mu_use_24h_time("12/24 Hr");  
-MenuItem mi_12h_time("12 Hr");  
-MenuItem mi_24h_time("24 Hr");
-Menu mu_show_seconds("Show Sec");  
-MenuItem mi_show_seconds("Seconds");  
-MenuItem mi_hide_seconds("AM/PM");
-Menu mu_use_celsius("Temp F/C");  
-MenuItem mi_use_fahrenheit("Deg F");
-MenuItem mi_use_celsius("Deg C");  
-MenuItem mi_exit("Exit");  
-
 
 void setup() {
     Serial.begin(57600); // USB is always 12 Mbit/sec
@@ -255,6 +258,7 @@ void writeNewString(char *inputBuf, int length) {
     }
 }
 
+// Time Setting
 #define TIME_HEADER  "T"   // Header tag for serial time sync message
 unsigned long processSyncMessage() {
     unsigned long pctime = 0L;
@@ -278,9 +282,7 @@ void inline setTimeViaSerialIfAvailable() {
     }
 }
 
-static int showingMenu = 0;
-static int displaySelection = 0;
-#define displaySelectionCount 3
+// Menu Selection
 
 void on_menu_set_time(MenuItem* selectedItem) {
     hide_menu();
@@ -352,7 +354,7 @@ void initMenu() {
 void inline writeCurrentTime() {
     char timeFormat[12]; // sprintf buffer
     if (!showingMenu && timeStatus() == timeSet) {
-        time_t localtime = usTimezones.toLocal(now());
+        time_t localtime = autoSetDST() ? usTimezones.toLocal(now()) : now();
         int hr = use24HTime() ? hour(localtime) : hourFormat12(localtime);
         int min = minute(localtime);
         int sec = second(localtime);
@@ -376,7 +378,7 @@ void inline writeCurrentTime() {
 void inline writeCurrentDate() {
     char dateFormat[12]; // sprintf buffer
     if (!showingMenu && timeStatus() == timeSet) {
-            time_t localtime = usTimezones.toLocal(now());
+        time_t localtime = autoSetDST() ? usTimezones.toLocal(now()) : now();
         sprintf(dateFormat, "%2d/%02d/%02d", month(localtime), day(localtime), year(localtime) - 2000);
         writeNewString(dateFormat, strlen(dateFormat));
     }
