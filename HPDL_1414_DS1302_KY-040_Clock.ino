@@ -24,6 +24,7 @@ pin 21    A1
 /// UI for setting time
 /// Auto-exit menu after timeout
 /// User guide documentation
+/// Fix regression about backwards scrolling
 
 #include <TimeLib.h>
 #include <Wire.h>
@@ -67,12 +68,17 @@ int lastButtonState = HIGH;
 long lastDebounceTime = 0;
 long debounceDelay = 10;
 
-//maybe these three should be volatile.
-#define display_buf_max_len 128
+#define display_buf_max_len 32
 static char displaybuf[display_buf_max_len];
 static int displaybuflen = 0;
-static int scrolloffset = 0;
-static bool scrolling = 0;
+static char alternateDisplayBuf[display_buf_max_len];
+static int alternateDisplayBufLen = 0;
+static bool displayingAlternate = 0;
+static bool blinking = 0;
+
+// Temperature Stuff
+unsigned long lastTempReadTime = 0;
+int temp = 0;
 
 // Timezones
 
@@ -99,6 +105,7 @@ MenuItem mi_use_fahrenheit("Deg F");
 MenuItem mi_use_celsius("Deg C");  
 MenuItem mi_exit("Exit");
 
+// Current Display
 typedef enum {
     DisplayModeClock = 0,
     DisplayModeMenu,
@@ -114,8 +121,36 @@ typedef enum {
 };
 typedef int ClockMode;
 
-static DisplayMode currentDisplayMode = DisplayModeClock;
-static ClockMode currentClockMode = ClockModeClock;
+volatile DisplayMode currentDisplayMode = DisplayModeClock;
+volatile ClockMode currentClockMode = ClockModeClock;
+
+// Time Setting
+
+typedef enum {
+    SetTimePageDate = 0,
+    SetTimePageTime,
+    SetTimePageCount,
+};
+typedef int SetTimePageType;
+
+typedef enum {
+    SetTimeField1 = 0,
+    SetTimeField2,
+    SetTimeField3,
+    SetTimeFieldCount,
+};
+typedef int SetTimeFieldType;
+
+static SetTimePageType setTimePage;
+static SetTimeFieldType setTimeField;
+
+static bool setPM;
+static int setHr;
+static int setMin;
+static int setSec;
+static int setDay;
+static int setMonth;
+static int setYr;
 
 // Preferences
 static char _autoSetDST = 0;
@@ -223,88 +258,82 @@ void writeChar(char character, int index) {
 }
 
 void writeString(char string[], int length) {
+    noInterrupts();
     for (int i=0; i < length; i++) {
         writeChar(string[i], i);
     }
+    interrupts();
 }
 
-void scrollIfNecessary(void) {
-    writeString(displaybuf + scrolloffset, numberOfModules * 4);
-    if (scrolloffset >= displaybuflen) {
-        scrolloffset = 0;
+void blinkIfNecessary(void) {
+    if (displayingAlternate) {
+        writeString(displaybuf, numberOfModules * 4);
+        displayingAlternate = 0;
     } else {
-        scrolloffset++;
+        writeString(alternateDisplayBuf, numberOfModules * 4);
+        displayingAlternate = 1;
     }
 }
 
-void inline ensureNotScrolling(void) {
-    if (scrolling) {
+void inline ensureNotBlinking(void) {
+    if (blinking) {
         Timer1.detachInterrupt();
-        scrolling = 0;
+        blinking = 0;
+        displayingAlternate = 0;
     }
 }
 
-void inline ensureScrolling(void) {
-    if (!scrolling) {
-        Timer1.attachInterrupt(scrollIfNecessary);
-        scrolling = 1;
+void inline ensureBlinking(void) {
+    if (!blinking) {
+        blinking = 1;
+        displayingAlternate = 0;
+        Timer1.attachInterrupt(blinkIfNecessary);
     }
 }
 
 void writeNewString(char *inputBuf, int length) {
+    if (length > (numberOfModules * 4)) { // limit scrolling.
+        length = (numberOfModules * 4);
+    }
     if (strncmp(inputBuf, displaybuf, length)) {
-        noInterrupts();
-        ensureNotScrolling();
-        memset(displaybuf, 0, display_buf_max_len);
         memcpy(displaybuf, inputBuf, length);
-        scrolloffset = 0;
-        if (length <= (numberOfModules * 4)) {
-            while (length < (numberOfModules * 4)) {
-                displaybuf[length] = ' ';
-                length++;
-            }
+        while (length < (numberOfModules * 4)) {
+            displaybuf[length] = ' ';
+            length++;
         }
         displaybuflen = length;
-        if (length > (numberOfModules * 4)) {
+        ensureNotBlinking();
+        writeString(displaybuf, (numberOfModules * 4));
+    }
+}
+
+void writeNewStrings(char *inputBuf, int length, char *alternateInputBuf, int alternateLength) {
+    if (length > (numberOfModules * 4)) { // limit scrolling.
+        length = (numberOfModules * 4);
+    }
+    if (alternateLength > (numberOfModules * 4)) { // limit scrolling.
+        alternateLength = (numberOfModules * 4);
+    }
+    if (strncmp(inputBuf, displaybuf, length) || strncmp(alternateInputBuf, alternateDisplayBuf, alternateLength) ) {
+        memcpy(displaybuf, inputBuf, length);
+        while (length < (numberOfModules * 4)) {
             displaybuf[length] = ' ';
-            memcpy(displaybuf + length + 1, inputBuf, ((numberOfModules * 4) - 1));
-            ensureScrolling();
-        } else {
-            writeString(displaybuf, (numberOfModules * 4));
+            length++;
         }
-        interrupts();
-    }
-}
-
-// Time Setting
-#define TIME_HEADER  "T"   // Header tag for serial time sync message
-unsigned long processSyncMessage() {
-    unsigned long pctime = 0L;
-    const unsigned long DEFAULT_TIME = 1420070400; // Jan 1 2015 
-    if(Serial.find(TIME_HEADER)) {
-        pctime = Serial.parseInt();
-        if ( pctime < DEFAULT_TIME) { // check the value is a valid time (greater than Jan 1 2015)
-            pctime = 0L; // return 0 to indicate that the time is not valid
+        displaybuflen = length;
+        memcpy(alternateDisplayBuf, alternateInputBuf, alternateLength);
+        while (alternateLength < (numberOfModules * 4)) {
+            displaybuf[alternateLength] = ' ';
+            alternateLength++;
         }
-    }
-    return pctime;
-}
-
-void inline setTimeViaSerialIfAvailable() {
-    if (Serial.available()) {
-        time_t t = processSyncMessage();
-        if (t != 0) {
-            RTC.set(t);   // set the RTC and the system time to the received value
-            setTime(t);          
-        }
+        alternateDisplayBufLen = alternateLength;
+        writeString(displaybuf, (numberOfModules * 4));
+        ensureBlinking();
     }
 }
 
 // Menus
 
-void on_menu_set_time(MenuItem* selectedItem) {
-    hide_menu();
-}
 void on_menu_auto_dst(MenuItem* selectedItem) {
     setAutoSetDST(1);
     hide_menu();
@@ -340,9 +369,25 @@ void on_menu_use_fahrenheit(MenuItem* selectedItem) {
 void on_menu_exit(MenuItem* selectedItem) {
     hide_menu();
 }
+void on_menu_set_time(MenuItem* selectedItem) {
+    hide_menu();
+    currentDisplayMode = DisplayModeSetTime;
+    setTimePage = SetTimePageDate;
+    setTimeField = SetTimeField1;
+    // Initialize the time setting procedure!
+    time_t localtime = autoSetDST() ? usTimezones.toLocal(now()) : now();
+    setPM = isPM(localtime);
+    setHr = hourFormat12(localtime);
+    setMin = minute(localtime);
+    setSec = 0;
+    setDay =  day(localtime);
+    setMonth = month(localtime);
+    setYr = year(localtime) - 2000;
+}
 
 void inline hide_menu() {
     currentDisplayMode = DisplayModeClock;
+    currentClockMode = ClockModeClock;
     mm.move_to_index(0);
 }
 
@@ -368,13 +413,196 @@ void initMenu() {
     ms.set_root_menu(&mm);
 }
 
-void writeTimeSetUI() {
-    
+// Time Setting
+#define TIME_HEADER  "T"   // Header tag for serial time sync message
+unsigned long processSyncMessage() {
+    unsigned long pctime = 0L;
+    const unsigned long DEFAULT_TIME = 1420070400; // Jan 1 2015 
+    if(Serial.find(TIME_HEADER)) {
+        pctime = Serial.parseInt();
+        if ( pctime < DEFAULT_TIME) { // check the value is a valid time (greater than Jan 1 2015)
+            pctime = 0L; // return 0 to indicate that the time is not valid
+        }
+    }
+    return pctime;
+}
+
+void inline setTimeViaSerialIfAvailable() {
+    if (Serial.available()) {
+        time_t t = processSyncMessage();
+        if (t != 0) {
+            RTC.set(t);   // set the RTC and the system time to the received value
+            setTime(t);          
+        }
+    }
+}
+
+void inline commitNewTimeFromInteractiveSetting() {
+        TimeElements newTime;
+         // year can be given as full four digit year or two digts (2010 or 10 for 2010);  
+         //it is converted to years since 1970
+        if (setYr > 99) {
+            newTime.Year = (setYr - 1970);
+        } else {
+            newTime.Year = (setYr + 30);
+        }
+        newTime.Month = setMonth;
+        newTime.Day = constrain(setDay, 1, daysInMonth(setMonth, setYr));
+        if (setPM) {
+            if (setHr == 12) {
+                newTime.Hour = setHr;
+            } else {
+                newTime.Hour = 12 + setHr;
+            }
+        } else {
+            if (setHr == 12) {
+                newTime.Hour = 0;
+            } else {
+                newTime.Hour = setHr;
+            }
+        }
+        newTime.Minute = setMin;
+        newTime.Second = setSec;
+        time_t newLocalTime = makeTime(newTime);
+        time_t newStdTime = newLocalTime;
+        if (usTimezones.locIsDST(newLocalTime)) {
+            newStdTime = newLocalTime + SECS_PER_HOUR;
+        }
+        RTC.set(newStdTime);
+        setTime(newStdTime);
+}
+
+void setTimeButtonClick() {
+    if (setTimeField == (SetTimeFieldCount - 1)) {
+        setTimeField = SetTimeField1;
+        setTimePage = setTimePage + 1;
+    } else {
+        setTimeField = setTimeField + 1;
+    }
+    if (setTimePage == SetTimePageCount) {
+        commitNewTimeFromInteractiveSetting();
+        currentDisplayMode = DisplayModeClock;
+    }
+}
+
+void setTimeEncoderChanged(int delta) {
+    int min = 0;
+    int max = 99;
+    if (setTimePage == SetTimePageTime) {
+        if (setTimeField == SetTimeField1) {
+            min = 1;
+            max = 12;
+            setHr = constrain(setHr + delta, min, max);
+        } else if (setTimeField == SetTimeField2) {
+            min = 0;
+            max = 59;
+            setMin = constrain(setMin + delta, min, max);
+        } if (setTimeField == SetTimeField3) {
+            min = 0;
+            max = 1;
+            setPM = constrain(setPM + delta, min, max);
+        }
+    } else { // SetTimePageDate
+        if (setTimeField == SetTimeField1) {
+            min = 1;
+            max = 12;
+            setMonth = constrain(setMonth + delta, min, max);
+        } else if (setTimeField == SetTimeField2) {
+            min = 1;
+            max = 31;
+            setDay = constrain(setDay + delta, min, max);
+        } if (setTimeField == SetTimeField3) {
+            min = 0;
+            max = 99;
+            setYr = constrain(setYr + delta, min, max);
+        }
+    }
+}
+
+void inline writeTimeSetUI() {
+    char setFormat[12]; // sprintf buffer
+    char altSetFormat[12]; // sprintf buffer
+
+    if (setTimePage == SetTimePageTime) {
+        if (setTimeField == SetTimeField1) {
+            if (setPM) {
+                sprintf(setFormat, "%2d:%02d PM", setHr, setMin);
+                sprintf(altSetFormat, "  :%02d PM", setMin);
+            } else {
+                sprintf(setFormat, "%2d:%02d AM", setHr, setMin);
+                sprintf(altSetFormat, "  :%02d AM", setMin);
+            }
+        } else if (setTimeField == SetTimeField2) {
+            if (setPM) {
+                sprintf(setFormat, "%2d:%02d PM", setHr, setMin);
+                sprintf(altSetFormat, "%2d:   PM", setHr);
+            } else {
+                sprintf(setFormat, "%2d:%02d AM", setHr, setMin);
+                sprintf(altSetFormat, "%2d:   AM", setHr);
+            }
+        } if (setTimeField == SetTimeField3) {
+            if (setPM) {
+                sprintf(setFormat, "%2d:%02d PM", setHr, setMin);
+            } else {
+                sprintf(setFormat, "%2d:%02d AM", setHr, setMin);
+            }
+            sprintf(altSetFormat, "%2d:%02d   ", setHr, setMin);
+        }
+    } else { // SetTimePageDate
+        if (setTimeField == SetTimeField1) {
+            sprintf(setFormat, "%2d/%02d/%02d", setMonth, setDay, setYr);
+            sprintf(altSetFormat, "  /%02d/%02d", setDay, setYr);
+        } else if (setTimeField == SetTimeField2) {
+            sprintf(setFormat, "%2d/%02d/%02d", setMonth, setDay, setYr);
+            sprintf(altSetFormat, "%2d/  /%02d", setMonth, setYr);
+        } if (setTimeField == SetTimeField3) {
+            sprintf(setFormat, "%2d/%02d/%02d", setMonth, setDay, setYr);
+            sprintf(altSetFormat, "%2d/%02d/  ", setMonth, setDay);
+        }
+    }
+
+    writeNewStrings(setFormat, strlen(setFormat), altSetFormat, strlen(altSetFormat));
+}
+
+int daysInMonth(int mon, int year) {
+    int days = 0;
+    switch(mon) {
+        case 1:
+        case 3:
+        case 5:
+        case 7:
+        case 8:
+        case 10:
+        case 12: {
+            days = 31;
+            break;
+        }
+        case 2: {
+            if (((year % 4) == 0)) { // Leap Year
+                days = 29;
+            } else {
+                days = 28;
+            }
+            break;
+        }
+        case 4:
+        case 6:
+        case 9:
+        case 11: {
+            days = 30;
+            break;
+        }
+        default: {
+            days = 0;
+            break;
+        }
+    }
+    return days;
 }
 
 void inline writeCurrentTime() {
     char timeFormat[12]; // sprintf buffer
-    if ((currentDisplayMode == DisplayModeClock) && timeStatus() == timeSet) {
+    if (timeStatus() == timeSet) {
         time_t localtime = autoSetDST() ? usTimezones.toLocal(now()) : now();
         int hr = use24HTime() ? hour(localtime) : hourFormat12(localtime);
         int min = minute(localtime);
@@ -398,15 +626,13 @@ void inline writeCurrentTime() {
 
 void inline writeCurrentDate() {
     char dateFormat[12]; // sprintf buffer
-    if ((currentDisplayMode == DisplayModeClock) && timeStatus() == timeSet) {
+    if (timeStatus() == timeSet) {
         time_t localtime = autoSetDST() ? usTimezones.toLocal(now()) : now();
         sprintf(dateFormat, "%2d/%02d/%02d", month(localtime), day(localtime), year(localtime) - 2000);
         writeNewString(dateFormat, strlen(dateFormat));
     }
 }
 
-unsigned long lastTempReadTime = 0;
-int temp = 0;
 void inline writeCurrentTemperature() {
     char tempFormat[12]; // sprintf buffer
     unsigned long requestTime = millis();
@@ -424,10 +650,8 @@ void inline writeCurrentTemperature() {
 }
 
 void inline writeMenu() {
-    if ((currentDisplayMode == DisplayModeMenu)) {
-        Menu const* cp_menu = ms.get_current_menu();
-        writeNewString(cp_menu->get_selected()->get_name(), strlen(cp_menu->get_selected()->get_name()));
-    }
+    Menu const* cp_menu = ms.get_current_menu();
+    writeNewString(cp_menu->get_selected()->get_name(), strlen(cp_menu->get_selected()->get_name()));
 }
 
 void inline readButton() {
@@ -450,6 +674,8 @@ void inline readButton() {
 void inline processButtonPush () {
     if ((currentDisplayMode == DisplayModeMenu)) {
         ms.select();
+    } else if ((currentDisplayMode == DisplayModeSetTime)) {
+        setTimeButtonClick();
     } else {
         currentDisplayMode = DisplayModeMenu;
     } 
@@ -462,7 +688,7 @@ void loop() {
         writeMenu();
     } else if (currentDisplayMode == DisplayModeSetTime) {
         writeTimeSetUI();
-    } else {
+    } else { // DisplayModeClock
         if (currentClockMode == ClockModeTemp) {
             writeCurrentTemperature();
         } else if (currentClockMode == ClockModeDate) {
@@ -473,7 +699,6 @@ void loop() {
     }
 }
 
-
 void isr ()  {
     unsigned long interruptTime = millis();
     // If interrupts come faster than 5ms, assume it's a bounce and ignore
@@ -481,12 +706,16 @@ void isr ()  {
         if (!digitalRead(PinDT)) {
             if (currentDisplayMode == DisplayModeMenu) {
                 ms.next();
+            } if (currentDisplayMode == DisplayModeSetTime) {
+                setTimeEncoderChanged(1);
             } else {
                 currentClockMode = (currentClockMode + 1) % ClockModeCount;
             }
         } else {
             if (currentDisplayMode == DisplayModeMenu) {
                 ms.prev();
+            } if (currentDisplayMode == DisplayModeSetTime) {
+                setTimeEncoderChanged(-1);
             } else {
                 currentClockMode = (currentClockMode - 1) % ClockModeCount;
             }
