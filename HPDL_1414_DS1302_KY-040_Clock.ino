@@ -24,6 +24,7 @@ pin 21    A1
 /// UI for setting time
 /// Auto-exit menu after timeout
 /// User guide documentation
+/// Use better button press debounce code
 
 #include <TimeLib.h>
 #include <Wire.h>
@@ -93,11 +94,25 @@ MenuItem mi_hide_seconds("AM/PM");
 Menu mu_use_celsius("Temp F/C");  
 MenuItem mi_use_fahrenheit("Deg F");
 MenuItem mi_use_celsius("Deg C");  
-MenuItem mi_exit("Exit");  
+MenuItem mi_exit("Exit");
 
-static int showingMenu = 0;
-static int displaySelection = 0;
-#define displaySelectionCount 3
+typedef enum {
+    DisplayModeClock = 0,
+    DisplayModeMenu,
+    DisplayModeSetTime,
+};
+typedef int DisplayMode;
+
+typedef enum {
+    ClockModeClock = 0,
+    ClockModeDate,
+    ClockModeTemp,
+    ClockModeCount,
+};
+typedef int ClockMode;
+
+static DisplayMode currentDisplayMode = DisplayModeClock;
+static ClockMode displaySelection = 0;
 
 // Preferences
 static char _autoSetDST = 0;
@@ -282,7 +297,7 @@ void inline setTimeViaSerialIfAvailable() {
     }
 }
 
-// Menu Selection
+// Menus
 
 void on_menu_set_time(MenuItem* selectedItem) {
     hide_menu();
@@ -324,12 +339,11 @@ void on_menu_exit(MenuItem* selectedItem) {
 }
 
 void inline hide_menu() {
-    showingMenu = 0;
+    currentDisplayMode = DisplayModeClock;
     mm.move_to_index(0);
 }
 
 void initMenu() {
-    // Menus
     mm.add_item(&mi_set, &on_menu_set_time);
     mm.add_menu(&mu_auto_dst);
     mu_auto_dst.add_item(&mi_auto_dst, &on_menu_auto_dst);
@@ -351,9 +365,13 @@ void initMenu() {
     ms.set_root_menu(&mm);
 }
 
+void writeTimeSetUI() {
+    
+}
+
 void inline writeCurrentTime() {
     char timeFormat[12]; // sprintf buffer
-    if (!showingMenu && timeStatus() == timeSet) {
+    if ((currentDisplayMode == DisplayModeClock) && timeStatus() == timeSet) {
         time_t localtime = autoSetDST() ? usTimezones.toLocal(now()) : now();
         int hr = use24HTime() ? hour(localtime) : hourFormat12(localtime);
         int min = minute(localtime);
@@ -377,7 +395,7 @@ void inline writeCurrentTime() {
 
 void inline writeCurrentDate() {
     char dateFormat[12]; // sprintf buffer
-    if (!showingMenu && timeStatus() == timeSet) {
+    if ((currentDisplayMode == DisplayModeClock) && timeStatus() == timeSet) {
         time_t localtime = autoSetDST() ? usTimezones.toLocal(now()) : now();
         sprintf(dateFormat, "%2d/%02d/%02d", month(localtime), day(localtime), year(localtime) - 2000);
         writeNewString(dateFormat, strlen(dateFormat));
@@ -403,17 +421,17 @@ void inline writeCurrentTemperature() {
 }
 
 void inline writeMenu() {
-    if (showingMenu) {
+    if ((currentDisplayMode == DisplayModeMenu)) {
         Menu const* cp_menu = ms.get_current_menu();
         writeNewString(cp_menu->get_selected()->get_name(), strlen(cp_menu->get_selected()->get_name()));
     }
 }
 
 void inline processButtonPush () {
-    if (showingMenu) {
+    if ((currentDisplayMode == DisplayModeMenu)) {
         ms.select();
     } else {
-        showingMenu = !showingMenu;
+        currentDisplayMode = DisplayModeMenu;
     } 
 }
 
@@ -426,15 +444,17 @@ void loop() {
     }
     
     setTimeViaSerialIfAvailable();
-    if (showingMenu) {
+    if (currentDisplayMode == DisplayModeMenu) {
         writeMenu();
+    } else if (currentDisplayMode == DisplayModeSetTime) {
+        writeTimeSetUI();
     } else {
-        if (displaySelection == 0) {
-            writeCurrentTime();
-        } else if (displaySelection == 1) {
-            writeCurrentDate();
-        } else {
+        if (displaySelection == ClockModeTemp) {
             writeCurrentTemperature();
+        } else if (displaySelection == ClockModeDate) {
+            writeCurrentDate();
+        } else { //displaySelection == ClockModeClock
+            writeCurrentTime();
         }
     }
 }
@@ -445,16 +465,16 @@ void isr ()  {
     // If interrupts come faster than 5ms, assume it's a bounce and ignore
     if (interruptTime - lastInterruptTime > 5) {
         if (!digitalRead(PinDT)) {
-            if (showingMenu) {
+            if (currentDisplayMode == DisplayModeMenu) {
                 ms.next();
             } else {
-                displaySelection = (displaySelection + 1) % 3;
+                displaySelection = (displaySelection + 1) % ClockModeCount;
             }
         } else {
-            if (showingMenu) {
+            if (currentDisplayMode == DisplayModeMenu) {
                 ms.prev();
             } else {
-                displaySelection = (displaySelection - 1) % 3;
+                displaySelection = (displaySelection - 1) % ClockModeCount;
             }
         }
     }
