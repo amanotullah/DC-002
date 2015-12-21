@@ -112,7 +112,7 @@ typedef enum {
 typedef int ClockMode;
 
 static DisplayMode currentDisplayMode = DisplayModeClock;
-static ClockMode displaySelection = 0;
+static ClockMode currentClockMode = ClockModeClock;
 
 // Preferences
 static char _autoSetDST = 0;
@@ -449,11 +449,11 @@ void loop() {
     } else if (currentDisplayMode == DisplayModeSetTime) {
         writeTimeSetUI();
     } else {
-        if (displaySelection == ClockModeTemp) {
+        if (currentClockMode == ClockModeTemp) {
             writeCurrentTemperature();
-        } else if (displaySelection == ClockModeDate) {
+        } else if (currentClockMode == ClockModeDate) {
             writeCurrentDate();
-        } else { //displaySelection == ClockModeClock
+        } else { //currentClockMode == ClockModeClock
             writeCurrentTime();
         }
     }
@@ -468,13 +468,13 @@ void isr ()  {
             if (currentDisplayMode == DisplayModeMenu) {
                 ms.next();
             } else {
-                displaySelection = (displaySelection + 1) % ClockModeCount;
+                currentClockMode = (currentClockMode + 1) % ClockModeCount;
             }
         } else {
             if (currentDisplayMode == DisplayModeMenu) {
                 ms.prev();
             } else {
-                displaySelection = (displaySelection - 1) % ClockModeCount;
+                currentClockMode = (currentClockMode - 1) % ClockModeCount;
             }
         }
     }
