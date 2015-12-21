@@ -24,7 +24,6 @@ pin 21    A1
 /// UI for setting time
 /// Auto-exit menu after timeout
 /// User guide documentation
-/// Use better button press debounce code
 
 #include <TimeLib.h>
 #include <Wire.h>
@@ -63,6 +62,10 @@ pin 21    A1
 
 // Rotary Encoder stuff
 volatile unsigned long lastInterruptTime = 0;
+int buttonState = HIGH;
+int lastButtonState = HIGH;
+long lastDebounceTime = 0;
+long debounceDelay = 10;
 
 //maybe these three should be volatile.
 #define display_buf_max_len 128
@@ -427,6 +430,23 @@ void inline writeMenu() {
     }
 }
 
+void inline readButton() {
+    int reading = digitalRead(PinSW);
+    if (reading != lastButtonState) {
+        lastDebounceTime = millis();
+    }
+
+    if ((millis() - lastDebounceTime) > debounceDelay) {
+        if (reading != buttonState) {
+            buttonState = reading;
+            if (buttonState == HIGH) { // On button up, toggle
+                processButtonPush();
+            }
+        }
+    }
+    lastButtonState = reading;
+}
+
 void inline processButtonPush () {
     if ((currentDisplayMode == DisplayModeMenu)) {
         ms.select();
@@ -436,13 +456,7 @@ void inline processButtonPush () {
 }
 
 void loop() {
-    // Handle Input
-    if (!(digitalRead(PinSW))) {        // check if pushbutton is pressed
-        while (!digitalRead(PinSW)) {}  // wait til switch is released
-        delay(10);                      // debounce
-        processButtonPush();
-    }
-    
+    readButton();    
     setTimeViaSerialIfAvailable();
     if (currentDisplayMode == DisplayModeMenu) {
         writeMenu();
