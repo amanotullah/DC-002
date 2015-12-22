@@ -1,7 +1,11 @@
 #! /usr/bin/env python
 
-import serial
 import time
+try:
+    import serial
+except:
+    print "Run the following command to install pyserial:\nsudo easy_install -U pyserial"
+
 
 def getTime():
     return int(time.time()) - time.timezone
@@ -14,7 +18,5 @@ while (initialTime == getTime()):
     #spin
 
 success = ser.write('T'+str(getTime()))
-if (success) :
-    print "Time Set!"
-else:
-    print "Setting Time Failed"
+ser.flush()
+ser.close()
