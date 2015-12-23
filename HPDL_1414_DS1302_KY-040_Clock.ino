@@ -21,7 +21,6 @@ pin 21    A1
 // of time in Standard time, and go +1 hour during daylight savings time.
 
 /// TODO:
-/// Auto-exit menu after timeout
 /// User guide documentation
 /// Synchronize better with RTC by syncing manually in a loop.
 
@@ -75,6 +74,10 @@ static char alternateDisplayBuf[display_buf_max_len];
 static int alternateDisplayBufLen = 0;
 static bool displayingAlternate = 0;
 static bool blinking = 0;
+
+// Menu Timeout (10s)
+static long lastMenuInteraction = 0;
+#define MENU_TIMEOUT 10000
 
 // Temperature Stuff
 unsigned long lastTempReadTime = 0;
@@ -656,14 +659,19 @@ void inline processButtonPush () {
         setTimeButtonClick();
     } else {
         currentDisplayMode = DisplayModeMenu;
+        lastMenuInteraction = millis();
     } 
 }
 
 void loop() {
-    readButton();    
+    readButton();
     setTimeViaSerialIfAvailable();
     if (currentDisplayMode == DisplayModeMenu) {
-        writeMenu();
+        if (millis() - lastMenuInteraction > MENU_TIMEOUT) {
+            hide_menu();
+        } else {
+            writeMenu();
+        }
     } else if (currentDisplayMode == DisplayModeSetTime) {
         writeTimeSetUI();
     } else { // DisplayModeClock
@@ -683,6 +691,7 @@ void isr ()  {
     if (interruptTime - lastInterruptTime > 5) {
         if (!digitalRead(PinDT)) {
             if (currentDisplayMode == DisplayModeMenu) {
+                lastMenuInteraction = millis();
                 ms.next();
             } if (currentDisplayMode == DisplayModeSetTime) {
                 setTimeEncoderChanged(1);
@@ -691,6 +700,7 @@ void isr ()  {
             }
         } else {
             if (currentDisplayMode == DisplayModeMenu) {
+                lastMenuInteraction = millis();
                 ms.prev();
             } if (currentDisplayMode == DisplayModeSetTime) {
                 setTimeEncoderChanged(-1);
