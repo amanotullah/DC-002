@@ -20,10 +20,6 @@ pin 21    A1
 // We don't ever actually figure out GMT or consider a real offset, but just keep track
 // of time in Standard time, and go +1 hour during daylight savings time.
 
-/// TODO:
-/// User guide documentation
-/// Synchronize better with RTC by syncing manually in a loop.
-
 // Install Teensyduino and set device properly.
 #include <TimeLib.h>
 #include <Wire.h>
@@ -64,8 +60,8 @@ pin 21    A1
 volatile unsigned long lastInterruptTime = 0;
 int buttonState = HIGH;
 int lastButtonState = HIGH;
-long lastDebounceTime = 0;
-long debounceDelay = 10;
+unsigned long lastDebounceTime = 0;
+unsigned long debounceDelay = 10;
 
 #define display_buf_max_len 32
 static char displaybuf[display_buf_max_len];
@@ -78,6 +74,16 @@ static bool blinking = 0;
 // Menu Timeout (10s)
 static long lastMenuInteraction = 0;
 #define MENU_TIMEOUT 10000
+
+// Sync sysTime with RTC
+// We sync 1ms less than 5 minutes so we won't spend long in the syncing loop
+#define SYNC_INTERVAL_MILLIS 299999
+
+//Time Syncing
+static time_t timeSyncAtBeginning = 0;
+static bool syncInProgress = false;
+static time_t lastAttempt = 0;
+static unsigned long lastSyncTime = 0;
 
 // Temperature Stuff
 unsigned long lastTempReadTime = 0;
@@ -221,9 +227,6 @@ void setup() {
 
     digitalWrite(WritePin1, HIGH);
     digitalWrite(WritePin2, HIGH);
-    
-    // RTC Stuff
-    setSyncProvider(RTC.get);   // the function to get the time from the RTC
 
     // init Preferences
     _autoSetDST = EEPROM.read(0);
@@ -231,6 +234,8 @@ void setup() {
     _showSeconds = EEPROM.read(2);
     _useCelsius =  EEPROM.read(3);
     initMenu();
+
+    setTime(RTC.get());
     
     Timer1.initialize(180000);
 }
@@ -660,7 +665,27 @@ void inline processButtonPush () {
     } 
 }
 
+void inline syncTimeWithRTC() {
+    if (syncInProgress) {
+        if (lastAttempt != millis()) { //don't query RTC faster than every 1ms.
+            time_t currentTime = RTC.get();
+            lastAttempt = millis();
+            if (currentTime != timeSyncAtBeginning) {
+                setTime(currentTime);
+                lastSyncTime = millis();
+                syncInProgress = false;
+            }
+        }
+    } else {
+        if (lastSyncTime <= millis() - SYNC_INTERVAL_MILLIS) {
+            timeSyncAtBeginning = RTC.get();
+            syncInProgress = true;
+        }
+    }
+}
+
 void loop() {
+    syncTimeWithRTC();
     readButton();
     setTimeViaSerialIfAvailable();
     if (currentDisplayMode == DisplayModeMenu) {
