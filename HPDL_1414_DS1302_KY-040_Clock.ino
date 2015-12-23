@@ -21,11 +21,12 @@ pin 21    A1
 // of time in Standard time, and go +1 hour during daylight savings time.
 
 /// TODO:
-/// UI for setting time
 /// Auto-exit menu after timeout
 /// User guide documentation
-/// Fix regression about backwards scrolling
+/// Fix day ranges during date/time setting
+/// Synchronize better with RTC by syncing manually in a loop.
 
+// Install Teensyduino and set device properly.
 #include <TimeLib.h>
 #include <Wire.h>
 #include <DS3232RTC.h> // From https://github.com/JChristensen/DS3232RTC
@@ -717,7 +718,11 @@ void isr ()  {
             } if (currentDisplayMode == DisplayModeSetTime) {
                 setTimeEncoderChanged(-1);
             } else {
-                currentClockMode = (currentClockMode - 1) % ClockModeCount;
+                if (currentClockMode == ClockModeClock) {
+                  currentClockMode = (ClockModeCount -1);
+                } else {
+                  currentClockMode = (currentClockMode - 1) % ClockModeCount;
+                }
             }
         }
     }
