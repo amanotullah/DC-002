@@ -467,10 +467,7 @@ void inline commitNewTimeFromInteractiveSetting() {
         newTime.Minute = setMin;
         newTime.Second = setSec;
         time_t newLocalTime = makeTime(newTime);
-        time_t newStdTime = newLocalTime;
-        if (usTimezones.locIsDST(newLocalTime)) {
-            newStdTime = newLocalTime + SECS_PER_HOUR;
-        }
+        time_t newStdTime = usTimezones.toUTC(newLocalTime);
         RTC.set(newStdTime);
         setTime(newStdTime);
 }
