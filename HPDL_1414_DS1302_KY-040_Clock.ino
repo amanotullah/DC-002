@@ -23,7 +23,6 @@ pin 21    A1
 /// TODO:
 /// Auto-exit menu after timeout
 /// User guide documentation
-/// Fix day ranges during date/time setting
 /// Synchronize better with RTC by syncing manually in a loop.
 
 // Install Teensyduino and set device properly.
@@ -510,7 +509,7 @@ void setTimeEncoderChanged(int delta) {
             setMonth = constrain(setMonth + delta, min, max);
         } else if (setTimeField == SetTimeField2) {
             min = 1;
-            max = 31;
+            max = daysInMonth(setMonth, 0);
             setDay = constrain(setDay + delta, min, max);
         } if (setTimeField == SetTimeField3) {
             min = 0;
@@ -565,38 +564,16 @@ void inline writeTimeSetUI() {
     writeNewStrings(setFormat, strlen(setFormat), altSetFormat, strlen(altSetFormat));
 }
 
+bool isLeapYear(int year) {
+    return (year % 4) || ((year % 100 == 0) && (year % 400)) ? 0 : 1;
+}
+
+// This method returns as if it were a leap year if passed 0
 int daysInMonth(int mon, int year) {
-    int days = 0;
-    switch(mon) {
-        case 1:
-        case 3:
-        case 5:
-        case 7:
-        case 8:
-        case 10:
-        case 12: {
-            days = 31;
-            break;
-        }
-        case 2: {
-            if (((year % 4) == 0)) { // Leap Year
-                days = 29;
-            } else {
-                days = 28;
-            }
-            break;
-        }
-        case 4:
-        case 6:
-        case 9:
-        case 11: {
-            days = 30;
-            break;
-        }
-        default: {
-            days = 0;
-            break;
-        }
+    static const uint8_t monthDays[]={31,28,31,30,31,30,31,31,30,31,30,31}; // API starts months from 1, this array starts from 0
+    int days = monthDays[mon-1];
+    if ((isLeapYear(year) && mon == 2) || year == 0) {
+        days = days + 1;
     }
     return days;
 }
