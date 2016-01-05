@@ -1,0 +1,44 @@
+Component		Brand		P/N			Supplier	Received
+Crystal 		NDK		NX2520SA		Digi-Key
+µc			Atmel		ATMEGA32U4		PJRC		
+RTC			MAXIM		DS3231SN		Digi-Key	
+BT1			KEYSTONE	3012 Battery holder	Digi-Key
+Rotary Encoder		BI Tech.	EN11-HSM1AF15		Digi-Key
+Display Modules		HP		HPDL-1414		China		X
+USB Connector		Molex		105133-0011		Digi-Key
+0603 passives							Adafruit
+Knobs			TBD		TBD			TBD
+
+OPTIONAL:
+Reset switch and LED
+Reset Switch: KMR231NG LFS
+
+#define LEDPin 11
+#define numberOfModules 2
+
+#define WritePin1 18 //0
+#define WritePin2 19 //1
+#define Address0 20
+#define Address1 21
+
+#define DataPin0 0
+#define DataPin1 1
+#define DataPin2 2
+#define DataPin3 3
+#define DataPin4 13
+#define DataPin5 14
+#define DataPin6 15
+
+// RTC stuff
+#define RTCSCL 5
+#define RTCSDA 6
+
+// Rotary Encoder Stuff
+#define PinCLK 7     // Used for generating interrupts using CLK signal
+#define PinDT 9     // Used for reading DT signal
+#define PinSW 12     // Used for the push button switch
+
+#define PinSQW	8
+
+
+Sent to manufacturing at revision 2859 (Hardware Bugs!)
