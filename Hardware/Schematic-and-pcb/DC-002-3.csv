@@ -1,0 +1,10 @@
+Total Holes: 111
+Tool,Hole Size,Hole Shape,Plated,Quantity
+T1,12.00Mil (0.305mm),circle,PTH,25
+T2,13.00Mil (0.330mm),circle,PTH,20
+T3,37.40Mil (0.950mm),circle,PTH,24
+T4,45.28Mil (1.150mm),circle,PTH,32
+T5,53.15Mil (1.350mm),circle,PTH,5
+n/a,47.24Mil (1.200mm),slot,PTH,2
+n/a,62.99Mil (1.600mm),slot,PTH,1
+n/a,70.87Mil (1.800mm),slot,PTH,2
