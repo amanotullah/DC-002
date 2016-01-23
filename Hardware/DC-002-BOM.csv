@@ -10,6 +10,7 @@
 ,1,"J2,J3,J4,J5",TE Connectivity,9-146458-0,,Digi-Key,A114600-ND ,Connector Header 40 Pos .100” (2.54mm) Stacker,http://www.digikey.com/product-search/en?keywords=A114600-ND%20,http://www.te.com/commerce/DocumentDelivery/DDEController?Action=srchrtrv&DocNm=146458&DocType=Customer+Drawing&DocLang=English,Break apart into 
 ,1,,Panasonic,CR1632,,Digi-Key,P036-ND,Battery - 16mm 3V Lithium Coin Cell,http://www.digikey.com/product-search/en?keywords=P036-ND,https://na.industrial.panasonic.com/sites/default/pidsa/files/crseries_datasheets_merged.pdf,
 ,1,,OSH Park,,,,,PCB,,,
+,1,J8,Tag-Connect,TC2030-IDC-NL,,Tag-Connect,TC2030-IDC-NL,Tag-Connect Programming Cable,http://www.tag-connect.com/TC2030-IDC-NL-10,http://www.tag-connect.com/Materials/TC2030-IDC-NL.pdf,OPTIONAL This is the programming fixture necessary to load a bootloader on to the AVR if not using PJRC chip with pre-programmed Teensy bootloader.
 ,2,"R1, R2",Generic,22Ω resistor,0603 (1608 metric),,,22Ω resistor,,,
 ,6,"R4, R5, R6, R7, R8, R9",Generic,10K resistor,0603 (1608 metric),,,10K resistor,,,See note about SMD passives book
 ,1,R3,Generic,1K resistor,0603 (1608 metric),,,1K resistor,,,See note about SMD passives book
