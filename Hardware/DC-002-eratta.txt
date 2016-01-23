@@ -1,0 +1,20 @@
+DC-002 HW v1.0 Eratta
+
+1.0 GM hardware version shipped to manufacturing at Upverter revision 2859.
+
+1) There is no keepout area around the negative battery contact, causing inserting a backup battery to cause a short between VCC and GND. It is necessary to cover the VCC area exposed (using Kapton tape) under the battery contact and add solder so the battery can make contact with ground.
+
+2) holes for USB connector and ground tabs on rotary encoder are not drilled, requiring modification of components
+
+3) pinout for HPDL-1414 devices is incorrect
+
+4) spacing between HPDL-1414 devices is too far apart
+
+
+DC-002 HW V1.1 Eratta
+
+1.1 hardware shipped to manufacturing at Upverter revision 
+
+1) holes for USB connector and ground tabs on rotary encoder are not drilled, requiring modification of components
+
+2) spacing between HPDL-1414 devices is too far apart

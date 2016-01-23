@@ -1,5 +1,0 @@
-DC-002 HW v1.0 Eratta
-
-1.0 GM hardware version shipped to manufacturing at Upverter revision 2859.
-
-1) There is no keepout area around the negative battery contact, causing inserting a backup battery to cause a short between VCC and GND. It is necessary to cover the VCC area exposed (using Kapton tape) under the battery contact and add solder so the battery can make contact with ground.
