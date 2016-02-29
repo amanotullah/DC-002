@@ -32,8 +32,11 @@ pin 21    A1
 
 // Pin Assignments
 
-#define LEDPin 11
 #define numberOfModules 2
+
+// For S/N 005 only:
+//#define WritePin1 23 //0
+//#define WritePin2 11 //1
 
 #define WritePin1 18 //0
 #define WritePin2 19 //1
@@ -221,7 +224,7 @@ void setup() {
     pinMode(DataPin4, OUTPUT);
     pinMode(DataPin5, OUTPUT);
     pinMode(DataPin6, OUTPUT);
-    
+        
     // Rotary Encoder stuff
     pinMode(PinCLK, INPUT); 
     pinMode(PinDT, INPUT);
