@@ -1,5 +1,5 @@
 /*  DC-002 High Precision Digital Clock
-HPDL-1414 & Chronodot
+HPDL-1414 & DS3231SN
 
 pin 0-6   data
 Pin 18    Write Module 1
