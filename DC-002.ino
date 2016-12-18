@@ -88,6 +88,7 @@ static time_t lastAttempt = 0;
 static unsigned long lastSyncTime = 0;
 
 // Temperature Stuff
+#define TEMP_CORRECTION_FACTOR_C -6
 unsigned long lastTempReadTime = 0;
 int temp = 0;
 
@@ -205,43 +206,6 @@ void setUseCelsius(char useCelsius) {
     _useCelsius = useCelsius;
 }
 
-void setup() {
-    Serial.begin(57600); // USB is always 12 Mbit/sec
-    Serial.setTimeout(0);
-    pinMode(WritePin1, OUTPUT);
-    pinMode(WritePin2, OUTPUT);
-    pinMode(Address0, OUTPUT);
-    pinMode(Address1, OUTPUT);
-
-    pinMode(DataPin0, OUTPUT);
-    pinMode(DataPin1, OUTPUT);
-    pinMode(DataPin2, OUTPUT);
-    pinMode(DataPin3, OUTPUT);
-    pinMode(DataPin4, OUTPUT);
-    pinMode(DataPin5, OUTPUT);
-    pinMode(DataPin6, OUTPUT);
-        
-    // Rotary Encoder stuff
-    pinMode(PinCLK, INPUT); 
-    pinMode(PinDT, INPUT);
-    pinMode(PinSW, INPUT_PULLUP);  
-    attachInterrupt(PinCLK, isr, FALLING);
-
-    digitalWrite(WritePin1, HIGH);
-    digitalWrite(WritePin2, HIGH);
-
-    // init Preferences
-    _autoSetDST = EEPROM.read(0);
-    _use24HTime = EEPROM.read(1);
-    _showSeconds = EEPROM.read(2);
-    _useCelsius =  EEPROM.read(3);
-    initMenu();
-
-    setTime(RTC.get());
-    
-    Timer1.initialize(180000);
-}
-
 char normalizeChars(char inputCharacter) {
     char result = inputCharacter;
     if(inputCharacter >= 'a' && inputCharacter <= 'z') {
@@ -344,6 +308,12 @@ void writeNewStrings(char *inputBuf, int length, char *alternateInputBuf, int al
 
 // Menus
 
+void inline hide_menu() {
+    currentDisplayMode = DisplayModeClock;
+    currentClockMode = ClockModeClock;
+    mm.move_to_index(0);
+}
+
 void on_menu_auto_dst(MenuItem* selectedItem) {
     setAutoSetDST(1);
     hide_menu();
@@ -393,12 +363,6 @@ void on_menu_set_time(MenuItem* selectedItem) {
     setDay =  day(localtime);
     setMonth = month(localtime);
     setYr = year(localtime) - 2000;
-}
-
-void inline hide_menu() {
-    currentDisplayMode = DisplayModeClock;
-    currentClockMode = ClockModeClock;
-    mm.move_to_index(0);
 }
 
 void initMenu() {
@@ -622,7 +586,7 @@ void inline writeCurrentTemperature() {
     char tempFormat[12]; // sprintf buffer
     unsigned long requestTime = millis();
     if (requestTime - lastTempReadTime > 500) {
-        temp = RTC.temperature() / 4;
+        temp = (RTC.temperature() / 4) + TEMP_CORRECTION_FACTOR_C;
         lastTempReadTime = requestTime;
     }
     if (useCelsius()) {
@@ -637,6 +601,17 @@ void inline writeCurrentTemperature() {
 void inline writeMenu() {
     Menu const* cp_menu = ms.get_current_menu();
     writeNewString(cp_menu->get_selected()->get_name(), strlen(cp_menu->get_selected()->get_name()));
+}
+
+void inline processButtonPush () {
+    if ((currentDisplayMode == DisplayModeMenu)) {
+        ms.select();
+    } else if ((currentDisplayMode == DisplayModeSetTime)) {
+        setTimeButtonClick();
+    } else {
+        currentDisplayMode = DisplayModeMenu;
+        lastMenuInteraction = millis();
+    } 
 }
 
 void inline readButton() {
@@ -656,17 +631,6 @@ void inline readButton() {
     lastButtonState = reading;
 }
 
-void inline processButtonPush () {
-    if ((currentDisplayMode == DisplayModeMenu)) {
-        ms.select();
-    } else if ((currentDisplayMode == DisplayModeSetTime)) {
-        setTimeButtonClick();
-    } else {
-        currentDisplayMode = DisplayModeMenu;
-        lastMenuInteraction = millis();
-    } 
-}
-
 void inline syncTimeWithRTC() {
     if (syncInProgress) {
         if (lastAttempt != millis()) { //don't query RTC faster than every 1ms.
@@ -684,6 +648,46 @@ void inline syncTimeWithRTC() {
             syncInProgress = true;
         }
     }
+}
+
+void setup() {
+    Serial.begin(57600); // USB is always 12 Mbit/sec
+    Serial.setTimeout(0);
+    pinMode(WritePin1, OUTPUT);
+    pinMode(WritePin2, OUTPUT);
+    pinMode(Address0, OUTPUT);
+    pinMode(Address1, OUTPUT);
+
+    pinMode(DataPin0, OUTPUT);
+    pinMode(DataPin1, OUTPUT);
+    pinMode(DataPin2, OUTPUT);
+    pinMode(DataPin3, OUTPUT);
+    pinMode(DataPin4, OUTPUT);
+    pinMode(DataPin5, OUTPUT);
+    pinMode(DataPin6, OUTPUT);
+
+    // Rotary Encoder stuff
+    pinMode(PinCLK, INPUT);
+    pinMode(PinDT, INPUT);
+    pinMode(PinSW, INPUT_PULLUP);
+    attachInterrupt(digitalPinToInterrupt(PinCLK), isr, FALLING);
+
+    digitalWrite(WritePin1, HIGH);
+    digitalWrite(WritePin2, HIGH);
+
+    // init Preferences
+    _autoSetDST = EEPROM.read(0);
+    _use24HTime = EEPROM.read(1);
+    _showSeconds = EEPROM.read(2);
+    _useCelsius =  EEPROM.read(3);
+    initMenu();
+
+    setTime(RTC.get());
+
+    Timer1.initialize(180000);
+
+    delay(100);
+    writeCurrentTime();
 }
 
 void loop() {
