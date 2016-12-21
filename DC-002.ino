@@ -82,9 +82,8 @@ static long lastMenuInteraction = 0;
 #define SYNC_INTERVAL_MILLIS 299999
 
 //Time Syncing
-static time_t timeSyncAtBeginning = 0;
-static bool syncInProgress = false;
-static time_t lastAttempt = 0;
+volatile static bool syncInProgress = false;
+volatile static bool nextSecondOccurred = false;
 static unsigned long lastSyncTime = 0;
 
 // Temperature Stuff
@@ -632,19 +631,16 @@ void inline readButton() {
 }
 
 void inline syncTimeWithRTC() {
-    if (syncInProgress) {
-        if (lastAttempt != millis()) { //don't query RTC faster than every 1ms.
-            time_t currentTime = RTC.get();
-            lastAttempt = millis();
-            if (currentTime != timeSyncAtBeginning) {
-                setTime(currentTime);
-                lastSyncTime = millis();
-                syncInProgress = false;
-            }
-        }
-    } else {
+    if (nextSecondOccurred) {
+        syncInProgress = false;
+        nextSecondOccurred = false;
+        time_t currentTime = RTC.get();
+        setTime(currentTime);
+        lastSyncTime = millis();
+        Serial.write("Synced");
+    }
+    if (!syncInProgress) {
         if (lastSyncTime <= millis() - SYNC_INTERVAL_MILLIS) {
-            timeSyncAtBeginning = RTC.get();
             syncInProgress = true;
         }
     }
@@ -671,6 +667,7 @@ void setup() {
     pinMode(PinDT, INPUT);
     pinMode(PinSW, INPUT_PULLUP);
     attachInterrupt(digitalPinToInterrupt(PinCLK), isr, FALLING);
+    attachInterrupt(digitalPinToInterrupt(PinSQW), sqw_isr, RISING);
 
     digitalWrite(WritePin1, HIGH);
     digitalWrite(WritePin2, HIGH);
@@ -681,6 +678,8 @@ void setup() {
     _showSeconds = EEPROM.read(2);
     _useCelsius =  EEPROM.read(3);
     initMenu();
+
+    RTC.squareWave(SQWAVE_1_HZ);
 
     setTime(RTC.get());
 
@@ -742,4 +741,10 @@ void isr ()  {
         }
     }
     lastInterruptTime = interruptTime;
+}
+
+void sqw_isr () {
+    if (syncInProgress) {
+        nextSecondOccurred = true;
+    }
 }
