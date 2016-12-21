@@ -94,9 +94,9 @@ int temp = 0;
 
 // Timezones
 
-TimeChangeRule usDaylight = {"DAY", Second, Sun, Mar, 2, 60};  //UTC + 1 Hour = Daylight Local Time
-TimeChangeRule usStandard = {"STD", First, Sun, Nov, 2, 0};   //UTC = Standard Local Time
-Timezone usTimezones(usDaylight, usStandard);
+TimeChangeRule auDaylight = {"DAY", First, Sun, Oct, 3, 60};  //UTC + 1 Hour = Daylight Local Time
+TimeChangeRule auStandard = {"STD", First, Sun, Apr, 2, 0};   //UTC = Standard Local Time
+Timezone auTimezones(auDaylight, auStandard);
 
 // Menu
 
@@ -355,7 +355,7 @@ void on_menu_set_time(MenuItem* selectedItem) {
     setTimePage = SetTimePageDate;
     setTimeField = SetTimeField1;
     // Initialize the time setting procedure!
-    time_t localtime = autoSetDST() ? usTimezones.toLocal(now()) : now();
+    time_t localtime = autoSetDST() ? auTimezones.toLocal(now()) : now();
     setPM = isPM(localtime);
     setHr = hourFormat12(localtime);
     setMin = minute(localtime);
@@ -438,7 +438,7 @@ void inline commitNewTimeFromInteractiveSetting() {
         newTime.Minute = setMin;
         newTime.Second = setSec;
         time_t newLocalTime = makeTime(newTime);
-        time_t newStdTime = usTimezones.toUTC(newLocalTime);
+        time_t newStdTime = auTimezones.toUTC(newLocalTime);
         RTC.set(newStdTime);
         setTime(newStdTime);
 }
@@ -476,12 +476,12 @@ void setTimeEncoderChanged(int delta) {
     } else { // SetTimePageDate
         if (setTimeField == SetTimeField1) {
             min = 1;
-            max = 12;
-            setMonth = constrain(setMonth + delta, min, max);
+            max = 31;
+            setDay = constrain(setDay + delta, min, max);
         } else if (setTimeField == SetTimeField2) {
             min = 1;
-            max = daysInMonth(setMonth, 0);
-            setDay = constrain(setDay + delta, min, max);
+            max = 12;
+            setMonth = constrain(setMonth + delta, min, max);
         } if (setTimeField == SetTimeField3) {
             min = 0;
             max = 99;
@@ -521,14 +521,14 @@ void inline writeTimeSetUI() {
         }
     } else { // SetTimePageDate
         if (setTimeField == SetTimeField1) {
-            sprintf(setFormat, "%2d/%02d/%02d", setMonth, setDay, setYr);
-            sprintf(altSetFormat, "  /%02d/%02d", setDay, setYr);
+            sprintf(setFormat, "%2d/%02d/%02d", setDay, setMonth, setYr);
+            sprintf(altSetFormat, "  /%02d/%02d", setMonth, setYr);
         } else if (setTimeField == SetTimeField2) {
-            sprintf(setFormat, "%2d/%02d/%02d", setMonth, setDay, setYr);
-            sprintf(altSetFormat, "%2d/  /%02d", setMonth, setYr);
+            sprintf(setFormat, "%2d/%02d/%02d", setDay, setMonth, setYr);
+            sprintf(altSetFormat, "%2d/  /%02d", setDay, setYr);
         } if (setTimeField == SetTimeField3) {
-            sprintf(setFormat, "%2d/%02d/%02d", setMonth, setDay, setYr);
-            sprintf(altSetFormat, "%2d/%02d/  ", setMonth, setDay);
+            sprintf(setFormat, "%2d/%02d/%02d", setDay, setMonth, setYr);
+            sprintf(altSetFormat, "%2d/%02d/  ", setDay, setMonth);
         }
     }
 
@@ -552,7 +552,7 @@ int daysInMonth(int mon, int year) {
 void inline writeCurrentTime() {
     char timeFormat[12]; // sprintf buffer
     if (timeStatus() == timeSet) {
-        time_t localtime = autoSetDST() ? usTimezones.toLocal(now()) : now();
+        time_t localtime = autoSetDST() ? auTimezones.toLocal(now()) : now();
         int hr = use24HTime() ? hour(localtime) : hourFormat12(localtime);
         int min = minute(localtime);
         int sec = second(localtime);
@@ -576,8 +576,8 @@ void inline writeCurrentTime() {
 void inline writeCurrentDate() {
     char dateFormat[12]; // sprintf buffer
     if (timeStatus() == timeSet) {
-        time_t localtime = autoSetDST() ? usTimezones.toLocal(now()) : now();
-        sprintf(dateFormat, "%2d/%02d/%02d", month(localtime), day(localtime), year(localtime) - 2000);
+        time_t localtime = autoSetDST() ? auTimezones.toLocal(now()) : now();
+        sprintf(dateFormat, "%2d/%02d/%02d", day(localtime), month(localtime), year(localtime) - 2000);
         writeNewString(dateFormat, strlen(dateFormat));
     }
 }
