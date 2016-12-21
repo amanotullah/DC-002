@@ -1,0 +1,38 @@
+The packaging is for a 4” cube box with polyurethane foam inserts. The inserts accommodate an Apple 10W power adapter, Micro USB cable, and the clock itself.
+
+The foam is cut from pieces of 1/2” or 1” foam, stacked up in layers with 2D shapes cut out for each of the items.
+
+Stackup is as follows from top to bottom
+
+1) 1/2” square uncut
+2) 1” square with hole cut for clock
+3) 1/2” square with hole cut for knob
+4) 1/2” square uncut
+5) 1” square with concentric holes cut for power adapter and USB cable
+6) 1/2” square uncut
+
+layers 2-3-4 and 5-6 are bonded with adhesive.
+
+All of the holes are cut in the foam using a waterjet cutter at high speed using water only.
+
+
+Adapter Rect:
+
+1.81 square, 0.39 corner radius
+
+1.165 - 0.905 = 0.26
+inside channel, 2.33 square, 0.65 radius
+
+1.75 - 1.165 = 0.585
+outside channel 3.5 square, 1.235 radius
+
+Clock
+1.555 tall
+2.165 wide
+
+
+
+Hole
+8mm diameter, center: 16mm from side, 20.5 from top
+0.315in, 0.63in, 0.807
+0.315 dia, 1.55in from left, 2.03 from top
