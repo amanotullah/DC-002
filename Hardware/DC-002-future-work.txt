@@ -1,0 +1,7 @@
+DC-002 Future Work
+
+1) It should be possible to remove crystal and oscillator load capacitors and instead drive clock on the ATMega32U4 directly from the 32Khz square wave output from the DS3231 chip.
+
+2) The back panel thickness should be slightly reduced around the rotary encoder so the nut fits more completely on the threaded shaft
+
+3) more support between back panel and back of PCB, so when removing USB cable, the pcb does not deflect
