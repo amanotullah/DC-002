@@ -4,21 +4,19 @@
 ,1,U2,MAXIM,DS3231SN,16-SOIC,Digi-Key,DS3231SN#-ND,Extremely Accurate I2C-Integrated RTC/TCXO/Crystal,http://www.digikey.com/product-detail/en/DS3231SN%23/DS3231SN%23-ND/1197576,https://datasheets.maximintegrated.com/en/ds/DS3231.pdf,
 ,1,BT1,KEYSTONE,3012,,Digi-Key,36-3012-ND,Battery Retainer 16mm Compact SMD,http://www.digikey.com/product-detail/en/3012/36-3012-ND/1627783,http://keyelco.com/userAssets/file/M65p9.pdf http://www.keyelco.com/product-pdf.cfm?p=790,
 ,1,SW1,TT Electronics / BI Technologies,EN11-HSM1AF15,,Digi-Key,987-1188-ND,Rotary Encoder 11mm SW Top Adjust,http://www.digikey.com/product-detail/en/EN11-HSM1AF15/987-1188-ND/2408766,http://www.bitechnologies.com/pdfs/en11.pdf,
-,2,"DS0,DS1",HP,HPDL-1414,DIP,UTSource,HPDL1414,LED Display Module,,http://www.farnell.com/datasheets/76528.pdf,
+,2,"DS0, DS1",Hewlett-Packard,HPDL-1414,DIP,UTSource,HPDL1414,LED Display Module,,http://www.farnell.com/datasheets/76528.pdf,Be careful to avoid counterfeits when buying old stock units
 ,1,J1,Molex,105133-0011,,Digi-Key,WM10134CT-ND,USB Micro-B Vertical Female,http://www.digikey.com/product-search/en?keywords=WM10134CT-ND,http://www.molex.com/pdm_docs/sd/1051330011_sd.pdf,
-,1,,TBD,TBD,,TBD,,Knobs,,,
-,1,"J2,J3,J4,J5",TE Connectivity,9-146458-0,,Digi-Key,A114600-ND ,Connector Header 40 Pos .100” (2.54mm) Stacker,http://www.digikey.com/product-search/en?keywords=A114600-ND%20,http://www.te.com/commerce/DocumentDelivery/DDEController?Action=srchrtrv&DocNm=146458&DocType=Customer+Drawing&DocLang=English,Break apart into 
+,1,"J2,J3,J4,J5",TE Connectivity,9-146458-0,,Digi-Key,A114600-ND,Connector Header 40 Pos .100” (2.54mm) Stacker,http://www.digikey.com/product-search/en?keywords=A114600-ND%20,http://www.te.com/commerce/DocumentDelivery/DDEController?Action=srchrtrv&DocNm=146458&DocType=Customer+Drawing&DocLang=English,Requires two 8-pos segments
 ,1,,Panasonic,CR1632,,Digi-Key,P036-ND,Battery - 16mm 3V Lithium Coin Cell,http://www.digikey.com/product-search/en?keywords=P036-ND,https://na.industrial.panasonic.com/sites/default/pidsa/files/crseries_datasheets_merged.pdf,
-,1,,OSH Park,,,,,PCB,,,
 ,1,J8,Tag-Connect,TC2030-IDC-NL,,Tag-Connect,TC2030-IDC-NL,Tag-Connect Programming Cable,http://www.tag-connect.com/TC2030-IDC-NL-10,http://www.tag-connect.com/Materials/TC2030-IDC-NL.pdf,OPTIONAL This is the programming fixture necessary to load a bootloader on to the AVR if not using PJRC chip with pre-programmed Teensy bootloader.
-,2,"R1, R2",Generic,22Ω resistor,0603 (1608 metric),,,22Ω resistor,,,
-,6,"R4, R5, R6, R7, R8, R9",Generic,10K resistor,0603 (1608 metric),,,10K resistor,,,See note about SMD passives book
-,1,R3,Generic,1K resistor,0603 (1608 metric),,,1K resistor,,,See note about SMD passives book
-,7,"C8, C11, C12, C10, C7, C13, C9",Generic,0.1 uF capacitor,0603 (1608 metric),,,0.1uF capacitor,,,See note about SMD passives book
-,2,"C5, C6",Generic,1 uF capacitor,0603 (1608 metric),,,1uF capacitor,,,See note about SMD passives book
-,2,"C1, C2",Generic,10pF capacitor,0603 (1608 metric),,,10pF capacitor,,,See note about SMD passives book
+,2,"R1, R2",Generic / Yageo,22Ω resistor / RC0603JR-0722RL,0603 (1608 metric),Digi-Key,311-22GRCT-ND,22Ω resistor,,,This value not included in SMD passives book referenced below
+,6,"R4, R5, R6, R7, R8, R9",Generic / Yageo,10K resistor / RC0603JR-0710KL,0603 (1608 metric),Digi-Key,311-10KGRCT-ND,10K resistor,,,See note about SMD passives book
+,1,R3,Generic / Yageo,1K resistor / RC0603JR-071KL,0603 (1608 metric),Digi-Key,311-1.0KGRCT-ND,1K resistor,,,See note about SMD passives book
+,7,"C8, C11, C12, C10, C7, C13, C9",Generic / Murata Electronics North America,0.1 uF capacitor / GRM188R71H104KA93D,0603 (1608 metric),Digi-Key,490-1519-1-ND,0.1uF capacitor,,,See note about SMD passives book
+,2,"C5, C6",Generic / Murata Electronics North America,1 uF capacitor / GRM188R71C105KA12D,0603 (1608 metric),Digi-Key,490-3900-1-ND,1uF capacitor,,,See note about SMD passives book
+,2,"C1, C2",Generic / Murata Electronics North America,10pF capacitor / GRM1885C1H100JA01D,0603 (1608 metric),Digi-Key,490-1403-1-ND,10pF capacitor,,,This value not included in SMD passives book referenced below
 ,,,,,,,,,,,
-,,,"*NOTE, SMD assortment books can be a convenient source for passives",,,,,,,,
+,,,"*NOTE, SMD assortment books can be a convenient source for passives, but may not include all values used in this project",,,,,,,,
 ,,,Adafruit,,,,442,SMT 0603 Resistor and Capacitor Book - 3725 pieces,https://www.adafruit.com/products/442,,
 ,,,,,,,,,,,
 ,,,,,,,,,,,
